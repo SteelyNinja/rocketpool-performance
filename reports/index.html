@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Security: Content Security Policy to prevent XSS attacks -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none';">
+    
+    <!-- Security: Additional security headers -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
+    
+    <title>Rocket Pool Performance Report - 7 Days (80%)</title>
+    <meta name="description" content="Performance analysis of Rocketpool validators. If you need help fixing pop into #support on Discord">
+    <link rel="stylesheet" href="assets/css/styles.css?v=theme-modal-fix-20260115">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+</head>
+<body>
+    <div class="container">
+        <!-- Page Title -->
+        <header class="page-header">
+            <h1 class="page-title">
+                🚀 Rocket Pool <span class="lack-of-text">lack-of</span> Performance Report
+            </h1>
+        </header>
+
+        <!-- Navigation Controls -->
+        <nav class="navigation">
+            <div class="navigation-controls">
+                <!-- Theme Toggle -->
+                <button class="theme-toggle" id="theme-toggle" title="Toggle theme: System → Light → Dark">
+                    🖥️
+                </button>
+
+                <!-- Zero Performance Toggle -->
+                <div class="toggle-container">
+                    <button class="toggle-switch active" id="zero-performance-toggle"></button>
+                    <span class="toggle-label">Display Zero Performance</span>
+                </div>
+
+                <!-- Exclude Back Up Toggle -->
+                <div class="toggle-container">
+                    <button class="toggle-switch" id="exclude-backup-toggle"></button>
+                    <span class="toggle-label">Exclude Back Up Validators</span>
+                </div>
+
+                <!-- Fusaka Deaths Toggle -->
+                <div class="toggle-container">
+                    <button class="toggle-switch" id="fusaka-deaths-toggle"></button>
+                    <span class="toggle-label">Fusaka Deaths 💀</span>
+                </div>
+
+                <!-- Period Dropdown -->
+                <div class="glass-dropdown" id="period-dropdown">
+                    <button class="glass-dropdown-button">
+                        <span>7 Days</span>
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M4.646 6.646a.5.5 0 0 1 .708 0L8 9.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 10a.5.5 0 0 1-.414 0L5.646 7.354a.5.5 0 0 1 0-.708z"/>
+                        </svg>
+                    </button>
+                    <div class="glass-dropdown-content">
+                        <div class="glass-dropdown-item" data-value="1day">1 Day</div>
+                        <div class="glass-dropdown-item selected" data-value="3day">3 Days</div>
+                        <div class="glass-dropdown-item" data-value="7day">7 Days</div>
+                    </div>
+                </div>
+                
+                <!-- Threshold Dropdown -->
+                <div class="glass-dropdown" id="threshold-dropdown">
+                    <button class="glass-dropdown-button">
+                        <span>80%</span>
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M4.646 6.646a.5.5 0 0 1 .708 0L8 9.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 10a.5.5 0 0 1-.414 0L5.646 7.354a.5.5 0 0 1 0-.708z"/>
+                        </svg>
+                    </button>
+                    <div class="glass-dropdown-content">
+                        <div class="glass-dropdown-item selected" data-value="80">Under 80%</div>
+                        <div class="glass-dropdown-item" data-value="90">Under 90%</div>
+                        <div class="glass-dropdown-item" data-value="95">Under 95%</div>
+                        <div class="glass-dropdown-item" data-value="all">All Nodes</div>
+                    </div>
+                </div>
+                
+                <!-- Sort Dropdown -->
+                <div class="glass-dropdown" id="sort-dropdown">
+                    <button class="glass-dropdown-button">
+                        <span>Rewards Lost ↓</span>
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M4.646 6.646a.5.5 0 0 1 .708 0L8 9.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 10a.5.5 0 0 1-.414 0L5.646 7.354a.5.5 0 0 1 0-.708z"/>
+                        </svg>
+                    </button>
+                    <div class="glass-dropdown-content">
+                        <div class="glass-dropdown-item selected" data-value="rewards-lost-desc">Rewards Lost ↓</div>
+                        <div class="glass-dropdown-item" data-value="performance-desc">Performance (High)</div>
+                        <div class="glass-dropdown-item" data-value="performance-asc">Performance (Low)</div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+        
+        <!-- Filter Controls -->
+        <div class="filter-controls">
+            <div class="filter-controls-row">
+                <!-- Search Box -->
+                <div class="search-container">
+                    <input type="text" id="search-input" class="search-input" placeholder="Search address / ENS">
+                    <button id="search-clear" class="search-clear" title="Clear search">×</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Report Info -->
+        <div id="header-info" class="glass-card p-4 mb-4">
+            <div class="loading-spinner" style="margin: 0 auto; width: 20px; height: 20px;"></div>
+        </div>
+
+        <!-- Summary Card - Used for both main view and node detail view -->
+        <div id="summary-card" class="glass-card p-4 mb-4 hidden">
+            <!-- Content populated by JavaScript -->
+        </div>
+
+        <!-- Statistics Grid -->
+        <div id="stats-grid" class="stats-grid">
+            <!-- Statistics will be populated by JavaScript -->
+        </div>
+
+        <!-- Performance Table -->
+        <div id="performance-table">
+            <div class="glass-card p-4 text-center">
+                <div class="loading-spinner" style="margin: 0 auto 16px;"></div>
+                <div>Loading performance data...</div>
+            </div>
+        </div>
+        
+        <!-- Pagination -->
+        <div id="pagination-container" class="pagination-container hidden">
+            <div class="pagination-info">
+                <span id="pagination-info-text"></span>
+            </div>
+            <div class="pagination-controls">
+                <button id="pagination-first" class="pagination-btn" title="First page">⟨⟨</button>
+                <button id="pagination-prev" class="pagination-btn" title="Previous page">⟨</button>
+                <div id="pagination-pages" class="pagination-pages"></div>
+                <button id="pagination-next" class="pagination-btn" title="Next page">⟩</button>
+                <button id="pagination-last" class="pagination-btn" title="Last page">⟩⟩</button>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="text-center mt-4 text-muted">
+            <div class="glass-card p-4">
+                <p>
+                    <strong>Rocket Pool Performance Dashboard</strong> | 
+                    <a href="https://rocketpool.net" target="_blank" style="color: var(--primary-600); text-decoration: none;">
+                        Learn more about Rocket Pool
+                    </a>
+                </p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Note Modal -->
+    <div id="note-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content note-modal-content">
+            <div class="modal-header">
+                <h3>📝 Notes for <span id="note-node-address"></span></h3>
+                <button class="modal-close" id="note-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <!-- View Mode -->
+                <div id="note-view-mode">
+                    <h4 id="note-view-title" class="note-view-title hidden"></h4>
+                    <div id="note-rendered-content" class="note-content"></div>
+                    <div id="note-metadata" class="note-metadata"></div>
+                    <div class="modal-actions">
+                        <button class="btn btn-primary" id="note-edit-btn">Edit Note</button>
+                    </div>
+                </div>
+
+                <!-- Edit Mode -->
+                <div id="note-edit-mode" class="hidden">
+                    <div class="note-title-input-container">
+                        <label for="note-title-input">Title (max 50 characters):</label>
+                        <input type="text" id="note-title-input" class="note-title-input"
+                               placeholder="Brief title for the note" maxlength="50">
+                    </div>
+                    <textarea id="note-textarea" class="note-textarea"
+                              placeholder="Enter note text... (Markdown supported: **bold**, *italic*, [link](url))"></textarea>
+                    <div class="note-help">
+                        <small>Supports Markdown: **bold**, *italic*, [link](url)</small>
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn btn-primary" id="note-save-btn">Save Note</button>
+                        <button class="btn btn-secondary" id="note-cancel-btn">Cancel</button>
+                        <button class="btn btn-danger" id="note-delete-btn">Delete Note</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/js/app.js?v=up-status-20260115"></script>
+</body>
+</html>
