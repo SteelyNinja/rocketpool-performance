@@ -57,8 +57,9 @@ class RocketPoolDashboard {
         return null;
         
       case 'ensName':
-        // ENS names should only contain valid characters
-        if (typeof data === 'string' && /^[a-z0-9\-\.]+\.eth$/.test(data)) {
+        // ENS names can contain Unicode characters (including emojis)
+        // Just validate it's a string ending in .eth
+        if (typeof data === 'string' && data.endsWith('.eth') && data.length > 4) {
           return this.sanitizeHtml(data);
         }
         return null;
