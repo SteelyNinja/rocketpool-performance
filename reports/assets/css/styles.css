@@ -2234,3 +2234,202 @@ body:not(.theme-light):not(.theme-dark) .note-title-input {
 body.theme-light .note-title-input {
   background: rgba(255, 255, 255, 0.9);
 }
+
+/* ========================================
+   SATURN I LAUNCH BANNER
+   ======================================== */
+
+/* Saturn Banner Container */
+.saturn-banner {
+    padding: 18px 24px;
+    margin: 16px 0;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+
+    /* Glass morphism effect matching existing design */
+    background: var(--glass-bg-light);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+/* Light mode specific - matches glass-bg-light */
+body.theme-light .saturn-banner {
+    background: rgba(37, 99, 235, 0.08);
+    border: 1px solid rgba(37, 99, 235, 0.15);
+}
+
+/* Dark mode specific */
+body.theme-dark .saturn-banner {
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(37, 99, 235, 0.25);
+}
+
+@media (prefers-color-scheme: dark) {
+    body:not(.theme-light) .saturn-banner {
+        background: rgba(15, 23, 42, 0.5);
+        border: 1px solid rgba(37, 99, 235, 0.25);
+    }
+}
+
+/* Hover effect */
+.saturn-banner:hover {
+    border-color: #FF6B35;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(255, 107, 53, 0.2);
+}
+
+/* Banner content wrapper */
+.saturn-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 1;
+}
+
+/* Saturn icon */
+.saturn-icon {
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+    animation: floating 3s ease-in-out infinite;
+}
+
+/* Light mode - subtle glow */
+body.theme-light .saturn-icon {
+    filter: drop-shadow(0 0 6px rgba(255, 107, 53, 0.3));
+}
+
+/* Dark mode - stronger glow */
+body.theme-dark .saturn-icon {
+    filter: drop-shadow(0 0 10px rgba(255, 107, 53, 0.5));
+}
+
+@media (prefers-color-scheme: dark) {
+    body:not(.theme-light) .saturn-icon {
+        filter: drop-shadow(0 0 10px rgba(255, 107, 53, 0.5));
+    }
+}
+
+/* Floating animation for Saturn icon */
+@keyframes floating {
+    0%, 100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-8px);
+    }
+}
+
+/* Text container */
+.saturn-text {
+    font-size: var(--font-size-md);
+    line-height: 1.4;
+}
+
+.saturn-text strong {
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+/* Countdown timer */
+.saturn-countdown {
+    font-size: 1.4em;
+    font-weight: 700;
+    color: #FF6B35;
+    font-family: 'Courier New', Consolas, monospace;
+    animation: pulse 2s ease-in-out infinite;
+    display: inline-block;
+    margin-left: 8px;
+}
+
+/* Pulse animation for countdown */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.75;
+    }
+}
+
+/* CTA Button */
+.saturn-btn {
+    background: linear-gradient(135deg, #FF6B35 0%, #ff8555 100%);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: var(--font-size-md);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    cursor: pointer;
+    z-index: 1;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(255, 107, 53, 0.2);
+}
+
+.saturn-btn:hover {
+    background: linear-gradient(135deg, #ff8555 0%, #ff9f77 100%);
+    transform: scale(1.05);
+    box-shadow: 0 4px 16px rgba(255, 107, 53, 0.3);
+}
+
+.saturn-btn:active {
+    transform: scale(0.98);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .saturn-banner {
+        padding: 14px 18px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .saturn-icon {
+        width: 48px;
+        height: 48px;
+    }
+
+    .saturn-text {
+        font-size: var(--font-size-sm);
+    }
+
+    .saturn-countdown {
+        font-size: 1.2em;
+        display: block;
+        margin-left: 0;
+        margin-top: 4px;
+    }
+
+    .saturn-btn {
+        width: 100%;
+        justify-content: center;
+        padding: 14px 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    .saturn-text {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .saturn-countdown {
+        font-size: 1.1em;
+    }
+}

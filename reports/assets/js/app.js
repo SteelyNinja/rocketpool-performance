@@ -2070,3 +2070,46 @@ let dashboard;
 document.addEventListener('DOMContentLoaded', () => {
   dashboard = new RocketPoolDashboard();
 });
+
+// ========================================
+// SATURN I LAUNCH COUNTDOWN TIMER
+// ========================================
+(function() {
+  'use strict';
+
+  const LAUNCH_DATE = new Date('2026-02-16T00:00:00Z');
+
+  function updateSaturnCountdown() {
+    const countdownElement = document.getElementById('saturn-countdown');
+    if (!countdownElement) return;
+
+    const now = new Date();
+    const diff = LAUNCH_DATE - now;
+
+    if (diff <= 0) {
+      countdownElement.textContent = 'LIVE NOW! 🚀';
+      countdownElement.style.color = '#047857'; // Success green
+      return;
+    }
+
+    // Calculate time units
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+    // Format the countdown
+    countdownElement.textContent = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+  }
+
+  // Initialize countdown when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      updateSaturnCountdown();
+      setInterval(updateSaturnCountdown, 1000);
+    });
+  } else {
+    updateSaturnCountdown();
+    setInterval(updateSaturnCountdown, 1000);
+  }
+})();
