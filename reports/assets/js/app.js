@@ -2077,7 +2077,7 @@ document.addEventListener('DOMContentLoaded', () => {
 (function() {
   'use strict';
 
-  const LAUNCH_DATE = new Date('2026-02-16T00:00:00Z');
+  const LAUNCH_DATE = new Date('2026-02-18T00:00:00Z');
 
   function updateSaturnCountdown() {
     const countdownElement = document.getElementById('saturn-countdown');
