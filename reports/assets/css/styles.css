@@ -1316,10 +1316,18 @@ body.theme-dark .poap-link:hover {
   min-width: 200px;
 }
 
+/* Compact styling for Total, Active, Exited columns */
 .performance-table th:nth-child(3),
-.performance-table td:nth-child(3) {
-  width: 8%; /* Total Minipools column - narrower */
-  min-width: 80px;
+.performance-table td:nth-child(3),
+.performance-table th:nth-child(4),
+.performance-table td:nth-child(4),
+.performance-table th:nth-child(5),
+.performance-table td:nth-child(5) {
+  padding-left: 8px;
+  padding-right: 8px;
+  width: 60px;
+  min-width: 60px;
+  text-align: center;
 }
 
 /* Node Detail Styles */

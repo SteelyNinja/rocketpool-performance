@@ -965,7 +965,7 @@ class RocketPoolDashboard {
     tableContainer.innerHTML = '';
 
     const headers = [
-      'Rank', 'Node Address', 'Total Minipools', 'Active', 'Exited',
+      'Rank', 'Node Address', 'Total', 'Active', 'Exited',
       'Performance Score', 'Status', 'ULD', 'Last Attestation', 'Earned Rewards (ETH)',
       'Rewards Missed (ETH)', 'Penalty (ETH)', 'Total Lost (ETH)'
     ];
