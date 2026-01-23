@@ -1243,7 +1243,7 @@ class RocketPoolDashboard {
       } else if (node.uld_status === 'no') {
         uldSpan.textContent = 'No';
       } else if (node.uld_status === 'partial' && node.uld_count) {
-        uldSpan.textContent = `Partial (${node.uld_count})`;
+        uldSpan.textContent = `(${node.uld_count})`;
       } else {
         uldSpan.textContent = '?';
       }
