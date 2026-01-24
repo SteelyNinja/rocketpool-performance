@@ -29,6 +29,11 @@ PERFORMANCE_THRESHOLDS = [80, 90, 95, "all"]
 # Default analysis parameters (for backward compatibility)
 EPOCHS_TO_ANALYZE = 900
 
+# Fusaka hard fork constants
+FUSAKA_EPOCH = 411392
+FUSAKA_DATETIME = "2025-12-03T21:49:11"
+FUSAKA_DEATHS_FILE = "fusaka_deaths.json"
+
 def connect_to_clickhouse():
     """Connect to ClickHouse database."""
     try:
@@ -40,6 +45,26 @@ def connect_to_clickhouse():
     except Exception as e:
         print(f"Failed to connect to ClickHouse: {e}")
         return None
+
+def load_fusaka_deaths():
+    """Load persistent Fusaka deaths data."""
+    if not os.path.exists(FUSAKA_DEATHS_FILE):
+        return {'validators': []}
+
+    try:
+        with open(FUSAKA_DEATHS_FILE, 'r') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError) as e:
+        print(f"Warning: Could not load {FUSAKA_DEATHS_FILE}: {e}")
+        return {'validators': []}
+
+def save_fusaka_deaths(fusaka_data):
+    """Save updated Fusaka deaths data."""
+    try:
+        with open(FUSAKA_DEATHS_FILE, 'w') as f:
+            json.dump(fusaka_data, f, indent=2)
+    except IOError as e:
+        print(f"Warning: Could not save {FUSAKA_DEATHS_FILE}: {e}")
 
 def get_all_validator_statuses(client, validators):
     """Get status information for all validators."""
@@ -373,9 +398,17 @@ def calculate_uld_status(node_address, scan_data):
     else:
         return {'status': 'partial', 'count': f"{true_count}/{total}"}
 
-def calculate_node_performance_scores(performance_data, all_rp_validators, threshold_filter=None, scan_data=None):
+def calculate_node_performance_scores(performance_data, all_rp_validators, threshold_filter=None, scan_data=None, fusaka_deaths=None):
     """Calculate performance scores grouped by node with optional threshold filtering."""
     print("Calculating node performance scores...")
+
+    # Initialise Fusaka deaths tracking
+    if fusaka_deaths is None:
+        fusaka_deaths = {'validators': []}
+
+    # Create a lookup dict for quick access
+    fusaka_lookup = {v['node_address']: v for v in fusaka_deaths.get('validators', [])}
+    validators_to_remove = []  # Track validators that came back online
     
     # First, get minipool counts per node from all Rocket Pool data
     node_minipool_counts = defaultdict(lambda: {'total': 0, 'active': 0, 'exited': 0})
@@ -480,9 +513,30 @@ def calculate_node_performance_scores(performance_data, all_rp_validators, thres
         # Backend debug confirmed working - removed debug logging
         
         node_last_attestation = get_node_last_attestation(attestations_list)
-        
-        # Backend confirmed working correctly
-        
+
+        # Check for Fusaka deaths - validators that died at the hard fork
+        if node_addr in fusaka_lookup:
+            # This node was previously identified as a Fusaka death
+            # Check if it has come back online (has recent attestations within 120-day window)
+            if (node_last_attestation.get('status') in ['found', 'found_extended'] and
+                node_last_attestation.get('epoch') is not None and
+                node_last_attestation['epoch'] > FUSAKA_EPOCH):
+                # Node is back online! Remove from Fusaka deaths list
+                validators_to_remove.append(node_addr)
+                print(f"  Node {node_addr} recovered from Fusaka death (last attestation: epoch {node_last_attestation['epoch']})")
+            else:
+                # Still offline - override with Fusaka death data
+                # This ensures we maintain the classification even after the 120-day window
+                genesis_timestamp = 1606824023
+                fusaka_timestamp = genesis_timestamp + (FUSAKA_EPOCH * 32 * 12)
+                node_last_attestation = {
+                    'epoch': FUSAKA_EPOCH,
+                    'timestamp': fusaka_timestamp,
+                    'datetime': FUSAKA_DATETIME,
+                    'age_epochs': node_last_attestation.get('age_epochs'),  # Keep current age
+                    'status': 'fusaka_death'
+                }
+
         # Determine if validator is back up (has made attestations in the most recent 3 epochs)
         is_back_up = False
         if (isinstance(performance_score, (int, float)) and performance_score > 0 and 
@@ -511,28 +565,38 @@ def calculate_node_performance_scores(performance_data, all_rp_validators, thres
             'uld_count': uld_info['count']
         })
     
+    # Update Fusaka deaths list - remove validators that came back online
+    if validators_to_remove:
+        fusaka_deaths['validators'] = [
+            v for v in fusaka_deaths.get('validators', [])
+            if v['node_address'] not in validators_to_remove
+        ]
+        fusaka_deaths['total_count'] = len(fusaka_deaths['validators'])
+        fusaka_deaths['last_updated'] = datetime.now().isoformat() + 'Z'
+        print(f"Removed {len(validators_to_remove)} recovered node(s) from Fusaka deaths tracking")
+
     # Sort by performance score (put N/A at the end)
     def sort_key(x):
         if x['performance_score'] == "N/A":
             return -1  # Put N/A at the end
         return x['performance_score']
-    
+
     node_scores.sort(key=sort_key, reverse=True)
-    
+
     # Apply threshold filter if specified (show underperforming nodes)
     if threshold_filter is not None:
         if threshold_filter == "all":
             print(f"Returning all {len(node_scores)} nodes (no threshold filter)")
-            return node_scores
+            return node_scores, fusaka_deaths
         else:
             filtered_scores = []
             for node in node_scores:
                 if node['performance_score'] != "N/A" and node['performance_score'] < threshold_filter:
                     filtered_scores.append(node)
             print(f"Filtered to {len(filtered_scores)} nodes below {threshold_filter}% threshold")
-            return filtered_scores
-    
-    return node_scores
+            return filtered_scores, fusaka_deaths
+
+    return node_scores, fusaka_deaths
 
 def load_scan_data(filename='rocketpool_scan_results.json'):
     """Load existing scan data."""
@@ -561,7 +625,12 @@ def run_analysis(period='7day', threshold=80, output_dir='reports'):
         return 1
     
     print(f"Loaded scan data for {len(scan_results)} nodes")
-    
+
+    # Load Fusaka deaths tracking
+    fusaka_deaths = load_fusaka_deaths()
+    if fusaka_deaths.get('validators'):
+        print(f"Loaded {len(fusaka_deaths['validators'])} Fusaka death validators for tracking")
+
     # Extract validators from scan results
     validators = []
     for node in scan_results:
@@ -597,7 +666,9 @@ def run_analysis(period='7day', threshold=80, output_dir='reports'):
     performance_data, start_epoch, end_epoch = query_attestation_performance(client, active_validators, latest_epoch, epochs_to_analyze)
     
     # Calculate node performance scores with threshold filtering
-    node_scores = calculate_node_performance_scores(performance_data, validators, threshold)
+    node_scores, fusaka_deaths = calculate_node_performance_scores(
+        performance_data, validators, threshold, scan_data=scan_results, fusaka_deaths=fusaka_deaths
+    )
 
     # Create output directory if needed
     os.makedirs(output_dir, exist_ok=True)
@@ -620,9 +691,12 @@ def run_analysis(period='7day', threshold=80, output_dir='reports'):
     filename = os.path.join(period_dir, f'performance_{threshold}.json')
     with open(filename, 'w') as f:
         json.dump(output_data, f, indent=2, default=str)
-    
+
     print(f"\nPerformance analysis saved to {filename}")
-    
+
+    # Save updated Fusaka deaths tracking
+    save_fusaka_deaths(fusaka_deaths)
+
     # Print performance summary
     print(f"\n=== PERFORMANCE ANALYSIS SUMMARY ===")
     print(f"Period: {period} ({epochs_to_analyze} epochs, {start_epoch} to {end_epoch})")

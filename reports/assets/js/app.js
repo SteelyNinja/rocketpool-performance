@@ -124,7 +124,10 @@ class RocketPoolDashboard {
   // Check if a node is a "Fusaka Death" (stopped attesting at the hard fork)
   isFusakaDeath(node) {
     if (!node || !node.last_attestation) return false;
-    return node.last_attestation.datetime === this.FUSAKA_DATETIME;
+    // Check both datetime match (for validators within 120-day window)
+    // and status (for persistent tracking after 120-day window)
+    return node.last_attestation.datetime === this.FUSAKA_DATETIME ||
+           node.last_attestation.status === 'fusaka_death';
   }
 
   async init() {

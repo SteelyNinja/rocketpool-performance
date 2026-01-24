@@ -22,7 +22,7 @@ from rocketpool_analysis_only import (
     ANALYSIS_PERIODS, PERFORMANCE_THRESHOLDS,
     connect_to_clickhouse, load_scan_data, get_all_validator_statuses,
     get_active_validators, query_attestation_performance,
-    calculate_node_performance_scores
+    calculate_node_performance_scores, load_fusaka_deaths, save_fusaka_deaths
 )
 
 def run_multi_analysis(output_dir='reports'):
@@ -37,7 +37,12 @@ def run_multi_analysis(output_dir='reports'):
         return 1
     
     print(f"Loaded scan data for {len(scan_results)} nodes")
-    
+
+    # Load Fusaka deaths tracking
+    fusaka_deaths = load_fusaka_deaths()
+    if fusaka_deaths.get('validators'):
+        print(f"Loaded {len(fusaka_deaths['validators'])} Fusaka death validators for tracking")
+
     # Extract validators from scan results (shared across all reports)
     validators = []
     for node in scan_results:
@@ -111,8 +116,8 @@ def run_multi_analysis(output_dir='reports'):
                 threshold_desc = f"under {threshold}%"
             
             # Calculate node performance scores with threshold filtering
-            node_scores = calculate_node_performance_scores(
-                performance_data, validators, threshold, scan_results
+            node_scores, fusaka_deaths = calculate_node_performance_scores(
+                performance_data, validators, threshold, scan_results, fusaka_deaths
             )
 
             # Save performance analysis
@@ -143,6 +148,9 @@ def run_multi_analysis(output_dir='reports'):
                 print(f"    → {len(node_scores)} total nodes")
             else:
                 print(f"    → {len(node_scores)} underperforming nodes")
+
+    # Save updated Fusaka deaths tracking
+    save_fusaka_deaths(fusaka_deaths)
 
     # Generate summary report
     generate_summary_report(reports_generated, output_dir)
