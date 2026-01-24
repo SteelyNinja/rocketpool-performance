@@ -1586,11 +1586,93 @@ body.theme-dark .theme-toggle {
   }
 }
 
+/* Responsive donation badge */
+@media (max-width: 1024px) {
+  .donation-badge {
+    font-size: 0.8rem;
+  }
+
+  .donation-text {
+    display: none;
+  }
+
+  .donation-address::before {
+    content: "Support: ";
+    font-weight: normal;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--neutral-600);
+  }
+
+  /* Dark mode for responsive donation badge */
+  .theme-dark .donation-address::before {
+    color: var(--neutral-300);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    body:not(.theme-light):not(.theme-dark) .donation-address::before {
+      color: var(--neutral-300);
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .donation-badge {
+    width: 100%;
+    justify-content: center;
+    order: 2;
+  }
+
+  .search-container {
+    max-width: 100%;
+  }
+}
+
 /* Search Box Styles */
 .search-container {
   position: relative;
   flex: 1;
   max-width: 400px;
+}
+
+/* Donation Badge (next to search) */
+.donation-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, var(--glass-bg-light), rgba(139, 92, 246, 0.08));
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 0.75rem;
+  font-size: 0.85rem;
+  transition: all 0.3s ease;
+  flex-wrap: wrap;
+}
+
+.donation-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-raised);
+  border-color: var(--glass-border-hover);
+}
+
+.donation-text {
+  color: var(--neutral-600);
+  white-space: nowrap;
+}
+
+.donation-address {
+  color: var(--primary-600);
+  font-weight: 600;
+  text-decoration: none;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.9em;
+  transition: color 0.3s ease;
+  white-space: nowrap;
+}
+
+.donation-address:hover {
+  color: var(--primary-500);
+  text-decoration: underline;
 }
 
 .search-input {
@@ -1748,6 +1830,42 @@ body.theme-dark .theme-toggle {
   color: var(--neutral-400);
 }
 
+.theme-dark .donation-text,
+.theme-dark .footer-donation {
+  color: var(--neutral-300);
+}
+
+.theme-dark .donation-address,
+.theme-dark .footer-donation-address {
+  color: var(--primary-400);
+}
+
+.theme-dark .donation-address:hover,
+.theme-dark .footer-donation-address:hover {
+  color: var(--primary-300);
+}
+
+/* Footer Donation Styles */
+.footer-donation {
+  margin-top: 12px;
+  font-size: 0.9rem;
+  color: var(--neutral-600);
+}
+
+.footer-donation-address {
+  color: var(--primary-600);
+  font-weight: 600;
+  text-decoration: none;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  transition: color 0.3s ease;
+}
+
+.footer-donation-address:hover {
+  color: var(--primary-500);
+  text-decoration: underline;
+}
+
+/* Dark mode adjustments for donation elements */
 @media (prefers-color-scheme: dark) {
   body:not(.theme-light):not(.theme-dark) .search-input,
   body:not(.theme-light):not(.theme-dark) .pagination-container,
@@ -1757,18 +1875,33 @@ body.theme-dark .theme-toggle {
     color: var(--neutral-200);
     border-color: rgba(255, 255, 255, 0.1);
   }
-  
+
   body:not(.theme-light):not(.theme-dark) .search-input::placeholder {
     color: var(--neutral-400);
   }
-  
+
   body:not(.theme-light):not(.theme-dark) .search-clear:hover {
     background: rgba(255, 255, 255, 0.1);
     color: var(--neutral-300);
   }
-  
+
   body:not(.theme-light):not(.theme-dark) .pagination-info {
     color: var(--neutral-400);
+  }
+
+  body:not(.theme-light):not(.theme-dark) .donation-text,
+  body:not(.theme-light):not(.theme-dark) .footer-donation {
+    color: var(--neutral-300);
+  }
+
+  body:not(.theme-light):not(.theme-dark) .donation-address,
+  body:not(.theme-light):not(.theme-dark) .footer-donation-address {
+    color: var(--primary-400);
+  }
+
+  body:not(.theme-light):not(.theme-dark) .donation-address:hover,
+  body:not(.theme-light):not(.theme-dark) .footer-donation-address:hover {
+    color: var(--primary-300);
   }
 }
 /* ULD (Use Latest Delegate) Status Indicators */
