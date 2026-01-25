@@ -2474,11 +2474,46 @@ body.theme-dark .saturn-icon {
 .saturn-text {
     font-size: var(--font-size-md);
     line-height: 1.4;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.saturn-text-main {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
 }
 
 .saturn-text strong {
     font-weight: 600;
     color: var(--text-color);
+}
+
+/* Rotating fact */
+.saturn-rotating-fact {
+    font-size: 0.9em;
+    line-height: 1.4;
+    color: var(--text-color);
+    opacity: 0.85;
+    transition: opacity 0.3s ease-in-out;
+    min-height: 1.4em;
+}
+
+/* Light mode rotating fact */
+body.theme-light .saturn-rotating-fact {
+    color: rgba(30, 41, 59, 0.9);
+}
+
+/* Dark mode rotating fact */
+body.theme-dark .saturn-rotating-fact {
+    color: rgba(226, 232, 240, 0.85);
+}
+
+@media (prefers-color-scheme: dark) {
+    body:not(.theme-light) .saturn-rotating-fact {
+        color: rgba(226, 232, 240, 0.85);
+    }
 }
 
 /* Countdown timer */
@@ -2557,6 +2592,10 @@ body.theme-dark .saturn-icon {
         margin-top: 4px;
     }
 
+    .saturn-rotating-fact {
+        font-size: 0.85em;
+    }
+
     .saturn-btn {
         width: 100%;
         justify-content: center;
@@ -2566,11 +2605,19 @@ body.theme-dark .saturn-icon {
 
 @media (max-width: 480px) {
     .saturn-text {
+        gap: 6px;
+    }
+
+    .saturn-text-main {
         flex-direction: column;
         align-items: flex-start;
     }
 
     .saturn-countdown {
         font-size: 1.1em;
+    }
+
+    .saturn-rotating-fact {
+        font-size: 0.8em;
     }
 }

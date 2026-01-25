@@ -2082,6 +2082,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const LAUNCH_DATE = new Date('2026-02-18T00:00:00Z');
 
+  // Rotating facts about Saturn I
+  const SATURN_FACTS = [
+    "💰 Start your megapool with just 4 ETH instead of 8 ETH",
+    "🏗️ Megapools: One contract manages all your validators",
+    "⚡ Gas costs reduced with megapool efficiency",
+    "📈 1.35x solo staking APY ETH-only (higher with RPL staking)",
+    "🎯 ETH-only operation - no RPL staking required (5% commission)",
+    "💎 Optional RPL staking unlocks 9% voter share rewards",
+    "🗳️ Stake RPL to earn governance rights + extra ETH rewards",
+    "🚀 Lower barrier to entry for new node operators"
+  ];
+
+  let currentFactIndex = 0;
+
   function updateSaturnCountdown() {
     const countdownElement = document.getElementById('saturn-countdown');
     if (!countdownElement) return;
@@ -2105,14 +2119,37 @@ document.addEventListener('DOMContentLoaded', () => {
     countdownElement.textContent = `${days}d ${hours}h ${minutes}m ${seconds}s`;
   }
 
+  function rotateSaturnFact() {
+    const factElement = document.getElementById('saturn-rotating-fact');
+    if (!factElement) return;
+
+    // Fade out
+    factElement.style.opacity = '0';
+
+    setTimeout(() => {
+      // Update fact
+      currentFactIndex = (currentFactIndex + 1) % SATURN_FACTS.length;
+      factElement.textContent = SATURN_FACTS[currentFactIndex];
+
+      // Fade in
+      factElement.style.opacity = '0.85';
+    }, 300);
+  }
+
   // Initialize countdown when DOM is ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
       updateSaturnCountdown();
       setInterval(updateSaturnCountdown, 1000);
+
+      // Rotate facts every 5 seconds
+      setInterval(rotateSaturnFact, 5000);
     });
   } else {
     updateSaturnCountdown();
     setInterval(updateSaturnCountdown, 1000);
+
+    // Rotate facts every 5 seconds
+    setInterval(rotateSaturnFact, 5000);
   }
 })();
