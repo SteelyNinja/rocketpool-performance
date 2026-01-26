@@ -11,6 +11,7 @@ class RocketPoolDashboard {
     this.showZeroPerformance = true;
     this.excludeBackUpValidators = false;
     this.showOnlyFusakaDeaths = false;
+    this.showOnlyBelow32Eth = false;
 
     // New filtering and pagination
     this.currentSort = 'total-lost-desc';
@@ -139,6 +140,7 @@ class RocketPoolDashboard {
     this.setupToggle();
     this.setupBackUpToggle();
     this.setupFusakaToggle();
+    this.setupBelow32EthToggle();
     this.setupThemeToggle();
     this.setupNoteModal();
     await this.loadReport();
@@ -596,6 +598,27 @@ class RocketPoolDashboard {
     });
   }
 
+  setupBelow32EthToggle() {
+    const toggle = document.getElementById('below-32-eth-toggle');
+    if (!toggle) return;
+
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.showOnlyBelow32Eth = !this.showOnlyBelow32Eth;
+
+      if (this.showOnlyBelow32Eth) {
+        toggle.classList.add('active');
+      } else {
+        toggle.classList.remove('active');
+      }
+
+      // Re-render the current view with the new filter
+      if (this.currentView === 'main') {
+        this.renderMainReport();
+      }
+    });
+  }
+
   // Theme management methods
   initTheme() {
     console.log('Initializing theme system');
@@ -806,6 +829,13 @@ class RocketPoolDashboard {
       nodes = nodes.filter(node => this.isFusakaDeath(node));
     }
 
+    // Apply Below 32 ETH filter if toggle is on
+    if (this.showOnlyBelow32Eth) {
+      nodes = nodes.filter(node => {
+        return node.validators_below_32_eth && node.validators_below_32_eth > 0;
+      });
+    }
+
     // Apply sorting first to get the full ranking
     nodes = this.sortNodes(nodes);
     
@@ -838,6 +868,7 @@ class RocketPoolDashboard {
 
     const zeroScoreNodes = underperformingNodes.filter(n => n.performance_score === 0).length;
     const backUpNodes = underperformingNodes.filter(n => n.is_back_up).length;
+    const below32EthNodes = underperformingNodes.filter(n => n.validators_below_32_eth && n.validators_below_32_eth > 0).length;
 
     // Calculate count and label based on threshold
     let nodeCount, nodeLabel;
@@ -884,6 +915,7 @@ class RocketPoolDashboard {
       { value: zeroScoreNodes, label: 'Zero Performance Nodes' },
       { value: totalActiveMinipools, label: 'minipools' },
       { value: fusakaDeaths, label: 'Fusaka Deaths 💀' },
+      { value: below32EthNodes, label: 'Below 32 ETH ⚠️' },
       { value: this.formatRewards(totalRewardsLost), label: 'Lost ETH', formatted: true }
     ];
 
@@ -1278,13 +1310,16 @@ class RocketPoolDashboard {
   showNodeDetail(nodeAddress) {
     this.currentView = 'node-detail';
     this.currentNodeAddress = nodeAddress;
-    
+
+    // Add class to body for node detail styling
+    document.body.classList.add('node-detail-view');
+
     const nodeData = this.reportData.node_performance_scores.find(node => node.node_address === nodeAddress);
     if (!nodeData) {
       this.showError('Node data not found');
       return;
     }
-    
+
     this.renderNodeDetail(nodeData);
   }
 
@@ -1345,20 +1380,34 @@ class RocketPoolDashboard {
     const basicStats = [
       { value: nodeData.total_minipools, label: 'Total Minipools' },
       { value: nodeData.active_minipools, label: 'Active Minipools' },
-      { value: nodeData.exited_minipools, label: 'Exited Minipools' }
+      { value: nodeData.exited_minipools, label: 'Exited Minipools' },
+      {
+        value: nodeData.total_balance_eth ? nodeData.total_balance_eth.toFixed(2) + ' ETH' : 'N/A',
+        label: 'Total Balance',
+        subtitle: nodeData.avg_balance_eth ? `Avg: ${nodeData.avg_balance_eth.toFixed(2)} ETH` : null,
+        isBalance: true
+      }
     ];
 
     basicStats.forEach(stat => {
       const card = this.createElement('div', { className: 'stat-card' });
-      
+
       const valueElement = this.createElement('h3');
-      valueElement.textContent = String(this.validateData(stat.value, 'number'));
-      
+      valueElement.textContent = stat.isBalance ? stat.value : String(this.validateData(stat.value, 'number'));
+
       const labelElement = this.createElement('p');
       labelElement.textContent = this.validateData(stat.label, 'text');
-      
+
       card.appendChild(valueElement);
       card.appendChild(labelElement);
+
+      // Add subtitle if present
+      if (stat.subtitle) {
+        const subtitleElement = this.createElement('p', { className: 'stat-subtitle' });
+        subtitleElement.textContent = this.validateData(stat.subtitle, 'text');
+        card.appendChild(subtitleElement);
+      }
+
       statsGrid.appendChild(card);
     });
 
@@ -1439,6 +1488,26 @@ class RocketPoolDashboard {
     return section;
   }
 
+  getValidatorBalance(nodeData, validatorStatus, status, pubkey) {
+    // If validator is exited or not in database, return N/A
+    if (status !== 'Active' || !validatorStatus || !validatorStatus.val_id) {
+      return 'N/A';
+    }
+
+    // Get per-validator balance from report data
+    if (this.reportData.validator_balances && this.reportData.validator_balances[pubkey]) {
+      const balanceData = this.reportData.validator_balances[pubkey];
+      return balanceData.balance_eth || 0;
+    }
+
+    // Fallback to node average if per-validator data not available
+    if (nodeData.avg_balance_eth && nodeData.avg_balance_eth > 0) {
+      return nodeData.avg_balance_eth;
+    }
+
+    return 'N/A';
+  }
+
   renderValidatorTable(nodeData, nodeInScan) {
     const tableContainer = document.getElementById('performance-table');
     
@@ -1463,30 +1532,44 @@ class RocketPoolDashboard {
         status = index < nodeData.active_minipools ? 'Active' : 'Exited';
       }
       
+      // Get balance for this validator
+      const balance = this.getValidatorBalance(nodeData, validatorStatus, status, pubkey);
+
       return {
         index: index + 1,
         pubkey: validatedPubkey,
         minipool_address: validatedMinipoolAddr,
         status: status,
-        val_id: validatorStatus ? validatorStatus.val_id : null
+        val_id: validatorStatus ? validatorStatus.val_id : null,
+        balance: balance
       };
     });
 
     // Security: Use safe table creation
     tableContainer.innerHTML = '';
 
-    const headers = ['Index', 'Validator Public Key', 'Minipool Address', 'Validator ID', 'Status'];
+    const headers = ['Index', 'Validator Public Key', 'Minipool Address', 'Validator ID', 'Balance (ETH)', 'Status'];
 
     const rows = validators.map(validator => {
       // Create secure external link
       const beaconchainUrl = `https://beaconcha.in/validator/${encodeURIComponent(validator.pubkey)}`;
-      const pubkeyLink = this.createElement('a', { 
+      const pubkeyLink = this.createElement('a', {
         href: beaconchainUrl,
         className: 'validator-address'
       });
       pubkeyLink.setAttribute('target', '_blank');
       pubkeyLink.setAttribute('title', 'View on beaconcha.in');
       pubkeyLink.textContent = validator.pubkey;
+
+      // Create balance element
+      const balanceSpan = this.createElement('span', {
+        className: typeof validator.balance === 'number' && validator.balance < 32.0
+          ? 'balance-warning'
+          : 'balance-normal'
+      });
+      balanceSpan.textContent = typeof validator.balance === 'number'
+        ? validator.balance.toFixed(4)
+        : validator.balance;
 
       // Create status element
       const statusSpan = this.createElement('span', {
@@ -1499,6 +1582,7 @@ class RocketPoolDashboard {
         { element: pubkeyLink },
         { text: validator.minipool_address, className: 'node-address break-all' },
         validator.val_id ? String(validator.val_id) : 'N/A',
+        { element: balanceSpan },
         { element: statusSpan }
       ];
     });
@@ -1510,6 +1594,10 @@ class RocketPoolDashboard {
   showMainView() {
     this.currentView = 'main';
     this.currentNodeAddress = null;
+
+    // Remove node detail styling class
+    document.body.classList.remove('node-detail-view');
+
     this.renderMainReport();
   }
 

@@ -1198,9 +1198,23 @@ body.theme-dark .performance-table tbody tr:nth-child(even) {
 /* Statistics Grid Enhancement */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
   margin-bottom: 32px;
+}
+
+/* Explicit 6 columns for large screens to fit all cards in one row */
+@media (min-width: 1280px) {
+  .stats-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+/* 3 columns for medium screens (two rows) */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 .stat-card {
@@ -1328,6 +1342,106 @@ body.theme-dark .poap-link:hover {
   width: 60px;
   min-width: 60px;
   text-align: center;
+}
+
+/* Validator Detail Table Column Widths - Override for node detail view */
+/* When the node detail view is active, the table has 6 columns instead of 13 */
+.node-detail-view .performance-table th:nth-child(1),
+.node-detail-view .performance-table td:nth-child(1) {
+  width: 60px; /* Index column - compact */
+  min-width: 60px;
+  text-align: center;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.node-detail-view .performance-table th:nth-child(2),
+.node-detail-view .performance-table td:nth-child(2) {
+  width: 30%; /* Validator Public Key - wider for long hex strings */
+  min-width: 200px;
+}
+
+.node-detail-view .performance-table th:nth-child(3),
+.node-detail-view .performance-table td:nth-child(3) {
+  width: 25%; /* Minipool Address - adequate space */
+  min-width: 180px;
+}
+
+.node-detail-view .performance-table th:nth-child(4),
+.node-detail-view .performance-table td:nth-child(4) {
+  width: 100px; /* Validator ID - medium width for numbers */
+  min-width: 100px;
+  text-align: center;
+}
+
+.node-detail-view .performance-table th:nth-child(5),
+.node-detail-view .performance-table td:nth-child(5) {
+  width: 120px; /* Balance (ETH) - fixed width for numbers */
+  min-width: 120px;
+  text-align: right;
+  font-family: ui-monospace, 'SF Mono', monospace;
+  padding-right: 12px;
+}
+
+.node-detail-view .performance-table th:nth-child(6),
+.node-detail-view .performance-table td:nth-child(6) {
+  width: 100px; /* Status - fixed width */
+  min-width: 100px;
+  text-align: center;
+}
+
+/* Balance Display Styles */
+.balance-normal {
+  color: var(--success-color, #10b981);
+  font-weight: 500;
+  font-family: ui-monospace, 'SF Mono', monospace;
+}
+
+.balance-warning {
+  color: #f59e0b;
+  font-weight: 600;
+  font-family: ui-monospace, 'SF Mono', monospace;
+  padding: 2px 6px;
+  background: rgba(251, 191, 36, 0.1);
+  border-radius: 4px;
+}
+
+.stat-subtitle {
+  font-size: 0.75rem;
+  color: var(--neutral-500);
+  margin-top: 4px;
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not(.theme-light) .stat-subtitle {
+    color: var(--neutral-400);
+  }
+
+  body:not(.theme-light) .balance-normal {
+    color: #34d399;
+  }
+
+  body:not(.theme-light) .balance-warning {
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.15);
+  }
+}
+
+body.theme-light .stat-subtitle {
+  color: var(--neutral-500);
+}
+
+body.theme-dark .stat-subtitle {
+  color: var(--neutral-400);
+}
+
+body.theme-dark .balance-normal {
+  color: #34d399;
+}
+
+body.theme-dark .balance-warning {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.15);
 }
 
 /* Node Detail Styles */

@@ -284,7 +284,29 @@ def query_attestation_performance(client, validators, latest_epoch, epochs_to_an
             """
             
             result = client.query(performance_query)
-            
+
+            # Query validator balances at latest epoch
+            balance_query = f"""
+            SELECT
+                val_id,
+                val_balance,
+                val_effective_balance
+            FROM validators_summary
+            WHERE val_id IN ({val_id_list})
+            AND epoch = {end_epoch}
+            """
+
+            balance_result = client.query(balance_query)
+
+            # Create balance lookup dictionary
+            validator_balances = {}
+            for row in balance_result.result_rows:
+                val_id, val_balance, val_effective_balance = row
+                validator_balances[val_id] = {
+                    'val_balance': val_balance or 0,
+                    'val_effective_balance': val_effective_balance or 0
+                }
+
             # Get extended attestation data for validators with no recent attestations
             validators_needing_extended_search = []
             validators_with_recent_attestations = {}
@@ -340,7 +362,10 @@ def query_attestation_performance(client, validators, latest_epoch, epochs_to_an
                 if validator:
                     # For validators with no attestations in reporting period, set score to 0%
                     performance_score = 0.0 if last_attestation_epoch is None else None
-                    
+
+                    # Get balance data for this validator
+                    balance_data = validator_balances.get(val_id, {'val_balance': 0, 'val_effective_balance': 0})
+
                     validator_aggregates[val_id] = {
                         'val_id': val_id,
                         'node_address': validator['node_address'],
@@ -354,7 +379,11 @@ def query_attestation_performance(client, validators, latest_epoch, epochs_to_an
                         'total_epochs': total_epochs,
                         'successful_attestations': successful_attestations,
                         'performance_score': performance_score,
-                        'last_attestation': last_attestation_info
+                        'last_attestation': last_attestation_info,
+                        'val_balance': balance_data['val_balance'],
+                        'val_balance_eth': balance_data['val_balance'] / 1e9,
+                        'val_effective_balance': balance_data['val_effective_balance'],
+                        'val_effective_balance_eth': balance_data['val_effective_balance'] / 1e9
                     }
             
             print(f"  Processed {len(result.result_rows)} validators")
@@ -426,7 +455,10 @@ def calculate_node_performance_scores(performance_data, all_rp_validators, thres
         'total_penalties': 0,
         'total_possible_rewards': 0,
         'total_lost': 0,
-        'last_attestations': []
+        'last_attestations': [],
+        'validator_balances': [],
+        'total_balance': 0,
+        'validators_below_32_eth': 0
     })
     
     # Process each aggregated performance record (only active validators)
@@ -442,6 +474,16 @@ def calculate_node_performance_scores(performance_data, all_rp_validators, thres
         # Collect last attestation data - always collect it, even for 0% performance
         if record.get('last_attestation'):
             node_data[node_addr]['last_attestations'].append(record['last_attestation'])
+
+        # Aggregate balance data
+        if 'val_balance_eth' in record:
+            balance_eth = record['val_balance_eth']
+            node_data[node_addr]['validator_balances'].append(balance_eth)
+            node_data[node_addr]['total_balance'] += record['val_balance']
+
+            # Track undercollateralised validators
+            if balance_eth < 32.0:
+                node_data[node_addr]['validators_below_32_eth'] += 1
     
     def get_node_last_attestation(attestations):
         """Get the most recent attestation from a list of attestations."""
@@ -548,6 +590,17 @@ def calculate_node_performance_scores(performance_data, all_rp_validators, thres
         # Calculate ULD (Use Latest Delegate) status
         uld_info = calculate_uld_status(node_addr, scan_data)
 
+        # Calculate balance statistics
+        if node_data[node_addr]['validator_balances']:
+            balances = node_data[node_addr]['validator_balances']
+            avg_balance = sum(balances) / len(balances)
+            min_balance = min(balances)
+            max_balance = max(balances)
+        else:
+            avg_balance = 0
+            min_balance = None
+            max_balance = None
+
         node_scores.append({
             'node_address': node_addr,
             'total_minipools': minipool_counts['total'],
@@ -562,7 +615,12 @@ def calculate_node_performance_scores(performance_data, all_rp_validators, thres
             'last_attestation': node_last_attestation,
             'is_back_up': is_back_up,
             'uld_status': uld_info['status'],
-            'uld_count': uld_info['count']
+            'uld_count': uld_info['count'],
+            'total_balance_eth': node_data[node_addr]['total_balance'] / 1e9,
+            'avg_balance_eth': avg_balance,
+            'min_balance_eth': min_balance,
+            'max_balance_eth': max_balance,
+            'validators_below_32_eth': node_data[node_addr]['validators_below_32_eth']
         })
     
     # Update Fusaka deaths list - remove validators that came back online
@@ -675,6 +733,19 @@ def run_analysis(period='7day', threshold=80, output_dir='reports'):
     period_dir = os.path.join(output_dir, period)
     os.makedirs(period_dir, exist_ok=True)
     
+    # Create validator balance lookup by pubkey for frontend
+    validator_balances_lookup = {}
+    for record in performance_data:
+        pubkey = record.get('pubkey')
+        if pubkey:
+            validator_balances_lookup[pubkey] = {
+                'val_id': record.get('val_id'),
+                'balance_eth': record.get('val_balance_eth', 0),
+                'effective_balance_eth': record.get('val_effective_balance_eth', 0)
+            }
+
+    print(f"Created validator_balances_lookup with {len(validator_balances_lookup)} entries")
+
     # Save performance analysis with new structure
     output_data = {
         'analysis_date': datetime.now().isoformat(),
@@ -685,7 +756,8 @@ def run_analysis(period='7day', threshold=80, output_dir='reports'):
         'end_epoch': end_epoch,
         'total_nodes': len(node_scores),
         'node_performance_scores': node_scores,
-        'validator_statuses': all_validator_statuses
+        'validator_statuses': all_validator_statuses,
+        'validator_balances': validator_balances_lookup
     }
     
     filename = os.path.join(period_dir, f'performance_{threshold}.json')

@@ -120,6 +120,17 @@ def run_multi_analysis(output_dir='reports'):
                 performance_data, validators, threshold, scan_results, fusaka_deaths
             )
 
+            # Create validator balance lookup by pubkey for frontend
+            validator_balances_lookup = {}
+            for record in performance_data:
+                pubkey = record.get('pubkey')
+                if pubkey:
+                    validator_balances_lookup[pubkey] = {
+                        'val_id': record.get('val_id'),
+                        'balance_eth': record.get('val_balance_eth', 0),
+                        'effective_balance_eth': record.get('val_effective_balance_eth', 0)
+                    }
+
             # Save performance analysis
             output_data = {
                 'analysis_date': datetime.now().isoformat(),
@@ -130,7 +141,8 @@ def run_multi_analysis(output_dir='reports'):
                 'end_epoch': end_epoch,
                 'total_nodes': len(node_scores),
                 'node_performance_scores': node_scores,
-                'validator_statuses': all_validator_statuses
+                'validator_statuses': all_validator_statuses,
+                'validator_balances': validator_balances_lookup
             }
             
             filename = os.path.join(period_dir, f'performance_{threshold}.json')
