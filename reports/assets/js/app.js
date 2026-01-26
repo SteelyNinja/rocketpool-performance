@@ -915,7 +915,7 @@ class RocketPoolDashboard {
       { value: zeroScoreNodes, label: 'Zero Performance Nodes' },
       { value: totalActiveMinipools, label: 'minipools' },
       { value: fusakaDeaths, label: 'Fusaka Deaths 💀' },
-      { value: below32EthNodes, label: 'Below 32 ETH ⚠️' },
+      { value: below32EthNodes, label: 'Below 31.9 ETH ⚠️' },
       { value: this.formatRewards(totalRewardsLost), label: 'Lost ETH', formatted: true }
     ];
 
@@ -1563,7 +1563,7 @@ class RocketPoolDashboard {
 
       // Create balance element
       const balanceSpan = this.createElement('span', {
-        className: typeof validator.balance === 'number' && validator.balance < 32.0
+        className: typeof validator.balance === 'number' && validator.balance < 31.9
           ? 'balance-warning'
           : 'balance-normal'
       });

@@ -482,7 +482,7 @@ def calculate_node_performance_scores(performance_data, all_rp_validators, thres
             node_data[node_addr]['total_balance'] += record['val_balance']
 
             # Track undercollateralised validators
-            if balance_eth < 32.0:
+            if balance_eth < 31.9:
                 node_data[node_addr]['validators_below_32_eth'] += 1
     
     def get_node_last_attestation(attestations):
