@@ -1769,7 +1769,7 @@ class RocketPoolDashboard {
       span.textContent = 'No data';
       return span;
     }
-    
+
     // Handle dynamic "older_than_X_days" statuses
     if (lastAttestationData.status && lastAttestationData.status.startsWith('older_than_')) {
       const span = this.createElement('span', { className: 'attestation-old' });
@@ -1782,8 +1782,8 @@ class RocketPoolDashboard {
       }
       return span;
     }
-    
-    if (lastAttestationData.status === 'found' || lastAttestationData.status === 'found_extended') {
+
+    if (lastAttestationData.status === 'found' || lastAttestationData.status === 'found_extended' || lastAttestationData.status === 'fusaka_death') {
       try {
         const datetime = new Date(lastAttestationData.datetime);
 
