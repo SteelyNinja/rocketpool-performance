@@ -2172,14 +2172,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Rotating facts about Saturn I
   const SATURN_FACTS = [
-    "💰 Start your megapool with just 4 ETH instead of 8 ETH",
-    "🏗️ Megapools: One contract manages all your validators",
-    "⚡ Gas costs reduced with megapool efficiency",
-    "📈 1.35x solo staking APY ETH-only (higher with RPL staking)",
-    "🎯 ETH-only operation - no RPL staking required (5% commission)",
-    "💎 Optional RPL staking unlocks 9% voter share rewards",
-    "🗳️ Stake RPL to earn governance rights + extra ETH rewards",
-    "🚀 Lower barrier to entry for new node operators"
+    "🚀 Saturn 1 strengthens Rocket Pool's role in Ethereum staking",
+    "🧱 Decentralisation only works if it can scale sustainably",
+    "⚖️ Saturn 1 aligns operators, stakers, and protocol incentives",
+    "🚀 Rocket Pool evolves without compromising decentralisation",
+    "🛡️ Protocol resilience improves when operators can grow responsibly",
+    "🌍 A decentralised alternative that actually scales",
+    "❤️ Saturn 1 reflects what decentralisation should look like",
+    "🤝 Empowering individuals, not institutions"
   ];
 
   let currentFactIndex = 0;
