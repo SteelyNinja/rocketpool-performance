@@ -117,7 +117,7 @@ class ThemeManager {
 
 class StatsViewer {
     constructor() {
-        this.timeRange = '30'; // Default: 30 days
+        this.timeRange = 'all'; // Default: All time
         this.charts = {};
         this.statsData = null;
         this.filteredData = null;
