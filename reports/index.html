@@ -15,7 +15,7 @@
     
     <title>Rocket Pool Performance Report - 7 Days (80%)</title>
     <meta name="description" content="Performance analysis of Rocketpool validators. If you need help fixing pop into #support on Discord">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260126231700">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260130154000">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
 </head>
 <body>
@@ -25,6 +25,11 @@
             <h1 class="page-title">
                 🚀 Rocket Pool <span class="lack-of-text">lack-of</span> Performance Report
             </h1>
+            <div class="header-controls">
+                <button class="theme-toggle" id="theme-toggle" title="Toggle theme: System → Light → Dark">
+                    🖥️
+                </button>
+            </div>
         </header>
 
         <!-- Saturn I Launch Banner -->
@@ -50,11 +55,76 @@
 
         <!-- Navigation Controls -->
         <nav class="navigation">
-            <div class="navigation-controls">
-                <!-- Theme Toggle -->
-                <button class="theme-toggle" id="theme-toggle" title="Toggle theme: System → Light → Dark">
-                    🖥️
-                </button>
+            <!-- Row 1: Dropdowns & Donation -->
+            <div class="navigation-row-1">
+                <div class="dropdowns-group">
+                    <!-- Period Dropdown -->
+                    <div class="glass-dropdown" id="period-dropdown">
+                        <button class="glass-dropdown-button">
+                            <span>7 Days</span>
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M4.646 6.646a.5.5 0 0 1 .708 0L8 9.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 10a.5.5 0 0 1-.414 0L5.646 7.354a.5.5 0 0 1 0-.708z"/>
+                            </svg>
+                        </button>
+                        <div class="glass-dropdown-content">
+                            <div class="glass-dropdown-item" data-value="1day">1 Day</div>
+                            <div class="glass-dropdown-item selected" data-value="3day">3 Days</div>
+                            <div class="glass-dropdown-item" data-value="7day">7 Days</div>
+                        </div>
+                    </div>
+
+                    <!-- Threshold Dropdown -->
+                    <div class="glass-dropdown" id="threshold-dropdown">
+                        <button class="glass-dropdown-button">
+                            <span>80%</span>
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M4.646 6.646a.5.5 0 0 1 .708 0L8 9.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 10a.5.5 0 0 1-.414 0L5.646 7.354a.5.5 0 0 1 0-.708z"/>
+                            </svg>
+                        </button>
+                        <div class="glass-dropdown-content">
+                            <div class="glass-dropdown-item selected" data-value="80">Under 80%</div>
+                            <div class="glass-dropdown-item" data-value="90">Under 90%</div>
+                            <div class="glass-dropdown-item" data-value="95">Under 95%</div>
+                            <div class="glass-dropdown-item" data-value="all">All Nodes</div>
+                        </div>
+                    </div>
+
+                    <!-- Sort Dropdown -->
+                    <div class="glass-dropdown" id="sort-dropdown">
+                        <button class="glass-dropdown-button">
+                            <span>Rewards Lost ↓</span>
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M4.646 6.646a.5.5 0 0 1 .708 0L8 9.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 10a.5.5 0 0 1-.414 0L5.646 7.354a.5.5 0 0 1 0-.708z"/>
+                            </svg>
+                        </button>
+                        <div class="glass-dropdown-content">
+                            <div class="glass-dropdown-item selected" data-value="rewards-lost-desc">Rewards Lost ↓</div>
+                            <div class="glass-dropdown-item" data-value="performance-desc">Performance (High)</div>
+                            <div class="glass-dropdown-item" data-value="performance-asc">Performance (Low)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Donation Message -->
+                <div class="donation-badge">
+                    <span class="donation-text">Find this useful? Support development at </span>
+                    <a href="https://etherscan.io/address/minipool-down-alert.eth"
+                       class="donation-address"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       title="Click to view on Etherscan">
+                        minipool-down-alert.eth
+                    </a>
+                </div>
+            </div>
+
+            <!-- Row 2: Trends Button & Toggles -->
+            <div class="navigation-row-2">
+                <!-- Trends Button -->
+                <a href="stats/" class="trends-btn-glass">
+                    <span>📊</span>
+                    <span>Trends</span>
+                </a>
 
                 <!-- Zero Performance Toggle -->
                 <div class="toggle-container">
@@ -79,75 +149,15 @@
                     <button class="toggle-switch" id="below-32-eth-toggle"></button>
                     <span class="toggle-label">Below 31.9 ETH ⚠️</span>
                 </div>
-
-                <!-- Period Dropdown -->
-                <div class="glass-dropdown" id="period-dropdown">
-                    <button class="glass-dropdown-button">
-                        <span>7 Days</span>
-                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M4.646 6.646a.5.5 0 0 1 .708 0L8 9.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 10a.5.5 0 0 1-.414 0L5.646 7.354a.5.5 0 0 1 0-.708z"/>
-                        </svg>
-                    </button>
-                    <div class="glass-dropdown-content">
-                        <div class="glass-dropdown-item" data-value="1day">1 Day</div>
-                        <div class="glass-dropdown-item selected" data-value="3day">3 Days</div>
-                        <div class="glass-dropdown-item" data-value="7day">7 Days</div>
-                    </div>
-                </div>
-
-                <!-- Threshold Dropdown -->
-                <div class="glass-dropdown" id="threshold-dropdown">
-                    <button class="glass-dropdown-button">
-                        <span>80%</span>
-                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M4.646 6.646a.5.5 0 0 1 .708 0L8 9.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 10a.5.5 0 0 1-.414 0L5.646 7.354a.5.5 0 0 1 0-.708z"/>
-                        </svg>
-                    </button>
-                    <div class="glass-dropdown-content">
-                        <div class="glass-dropdown-item selected" data-value="80">Under 80%</div>
-                        <div class="glass-dropdown-item" data-value="90">Under 90%</div>
-                        <div class="glass-dropdown-item" data-value="95">Under 95%</div>
-                        <div class="glass-dropdown-item" data-value="all">All Nodes</div>
-                    </div>
-                </div>
-
-                <!-- Sort Dropdown -->
-                <div class="glass-dropdown" id="sort-dropdown">
-                    <button class="glass-dropdown-button">
-                        <span>Rewards Lost ↓</span>
-                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M4.646 6.646a.5.5 0 0 1 .708 0L8 9.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 10a.5.5 0 0 1-.414 0L5.646 7.354a.5.5 0 0 1 0-.708z"/>
-                        </svg>
-                    </button>
-                    <div class="glass-dropdown-content">
-                        <div class="glass-dropdown-item selected" data-value="rewards-lost-desc">Rewards Lost ↓</div>
-                        <div class="glass-dropdown-item" data-value="performance-desc">Performance (High)</div>
-                        <div class="glass-dropdown-item" data-value="performance-asc">Performance (Low)</div>
-                    </div>
-                </div>
             </div>
         </nav>
 
         <!-- Filter Controls -->
         <div class="filter-controls">
-            <div class="filter-controls-row">
-                <!-- Search Box -->
-                <div class="search-container">
-                    <input type="text" id="search-input" class="search-input" placeholder="Search address / ENS">
-                    <button id="search-clear" class="search-clear" title="Clear search">×</button>
-                </div>
-
-                <!-- Donation Message -->
-                <div class="donation-badge">
-                    <span class="donation-text">Find this useful? Support development at </span>
-                    <a href="https://etherscan.io/address/minipool-down-alert.eth"
-                       class="donation-address"
-                       target="_blank"
-                       rel="noopener noreferrer"
-                       title="Click to view on Etherscan">
-                        minipool-down-alert.eth
-                    </a>
-                </div>
+            <!-- Search Box -->
+            <div class="search-container">
+                <input type="text" id="search-input" class="search-input" placeholder="Search address / ENS">
+                <button id="search-clear" class="search-clear" title="Clear search">×</button>
             </div>
         </div>
 

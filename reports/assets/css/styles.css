@@ -672,6 +672,7 @@ body.theme-dark h3 {
 
 /* Page Header */
 .page-header {
+  position: relative;
   text-align: center;
   margin-bottom: 24px;
 }
@@ -681,6 +682,15 @@ body.theme-dark h3 {
   color: var(--rp-orange-600);
   font-size: var(--font-size-3xl);
   font-weight: 700;
+}
+
+.header-controls {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 /* Neon Error "lack-of" styling */
@@ -724,8 +734,31 @@ body.theme-dark h3 {
 /* Navigation */
 .navigation {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
   margin-bottom: 32px;
+}
+
+.navigation-row-1 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.dropdowns-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.navigation-row-2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .navigation-controls {
@@ -733,6 +766,41 @@ body.theme-dark h3 {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+/* Trends Button - Glass style matching dropdowns */
+.trends-btn-glass {
+  background: linear-gradient(135deg, var(--glass-bg-light), rgba(139, 92, 246, 0.08));
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: var(--font-size-base);
+  color: var(--neutral-700);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.trends-btn-glass:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-raised);
+  border-color: var(--glass-border-hover);
+}
+
+/* Dark mode styling for trends button */
+@media (prefers-color-scheme: dark) {
+  body:not(.theme-light) .trends-btn-glass {
+    color: var(--neutral-200);
+  }
+}
+
+body.theme-dark .trends-btn-glass {
+  color: var(--neutral-200);
 }
 
 /* Performance Table */

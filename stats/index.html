@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rocket Pool Network Trends - Stats & Analytics</title>
+
+    <!-- Reuse existing styles -->
+    <link rel="stylesheet" href="../assets/css/styles.css">
+    <link rel="stylesheet" href="assets/css/stats.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="../assets/images/favicon.png">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="page-title">
+                    <span class="icon">📊</span>
+                    Rocket Pool Network Trends
+                </h1>
+                <p class="page-subtitle">Historical performance analytics and network statistics</p>
+            </div>
+            <div class="header-controls">
+                <button class="theme-toggle" id="theme-toggle" title="Toggle theme: System → Light → Dark">
+                    🖥️
+                </button>
+                <a href="../index.html" class="btn-secondary">← Back to Dashboard</a>
+            </div>
+        </header>
+
+        <!-- Time Range Selector -->
+        <div class="time-range-selector glass-panel">
+            <span class="selector-label">Time Range:</span>
+            <div class="btn-group">
+                <button class="range-btn" data-range="7">7 Days</button>
+                <button class="range-btn active" data-range="30">30 Days</button>
+                <button class="range-btn" data-range="90">90 Days</button>
+                <button class="range-btn" data-range="all">All Time</button>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="summary-cards">
+            <div class="summary-card glass-panel">
+                <div class="card-header">
+                    <span class="card-icon">⚠️</span>
+                    <span class="card-title">Underperforming Nodes</span>
+                </div>
+                <div class="card-value" id="underperforming-value">--</div>
+                <div class="card-change" id="underperforming-change">--</div>
+            </div>
+
+            <div class="summary-card glass-panel">
+                <div class="card-header">
+                    <span class="card-icon">⭕</span>
+                    <span class="card-title">Zero Performance Nodes</span>
+                </div>
+                <div class="card-value" id="zero-performance-value">--</div>
+                <div class="card-change" id="zero-performance-change">--</div>
+            </div>
+
+            <div class="summary-card glass-panel">
+                <div class="card-header">
+                    <span class="card-icon">⚡</span>
+                    <span class="card-title">Avg Performance Score</span>
+                </div>
+                <div class="card-value" id="performance-value">--</div>
+                <div class="card-change" id="performance-change">--</div>
+            </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="charts-grid">
+            <!-- Underperforming Nodes Trend -->
+            <div class="chart-container glass-panel">
+                <div class="chart-header">
+                    <h2 class="chart-title">Underperforming Nodes Trend</h2>
+                    <p class="chart-subtitle">Nodes below 80% performance threshold</p>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="underperformingChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Zero Performance Nodes -->
+            <div class="chart-container glass-panel">
+                <div class="chart-header">
+                    <h2 class="chart-title">Zero Performance Nodes</h2>
+                    <p class="chart-subtitle">Nodes with 0% attestation performance (7-day window)</p>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="zeroPerformanceChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Performance Score Trend -->
+            <div class="chart-container glass-panel">
+                <div class="chart-header">
+                    <h2 class="chart-title">Network Performance Score</h2>
+                    <p class="chart-subtitle">Average attestation success rate across all validators</p>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="performanceScoreChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Network Lost ETH Trend -->
+            <div class="chart-container glass-panel">
+                <div class="chart-header">
+                    <h2 class="chart-title">Network Lost ETH Trend</h2>
+                    <p class="chart-subtitle">Missed rewards + penalties (7-day rolling)</p>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="lostEthChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Undercollateralised Validators -->
+            <div class="chart-container glass-panel">
+                <div class="chart-header">
+                    <h2 class="chart-title">Undercollateralised Validators</h2>
+                    <p class="chart-subtitle">Validators with balance below 31.9 ETH</p>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="undercollateralisedChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading" class="loading-overlay" style="display: none;">
+            <div class="loading-spinner"></div>
+            <p>Loading statistics...</p>
+        </div>
+
+        <!-- Error Message -->
+        <div id="error" class="error-message glass-panel" style="display: none;">
+            <span class="error-icon">⚠️</span>
+            <p id="error-text">Failed to load statistics data</p>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Data updated daily at 1:00 UTC | 7-day rolling window with 80% threshold</p>
+        </footer>
+    </div>
+
+    <!-- Stats Viewer JS -->
+    <script src="assets/js/stats.js?v=1.6"></script>
+</body>
+</html>
