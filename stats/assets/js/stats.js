@@ -211,11 +211,17 @@ class StatsViewer {
         // Underperforming Nodes
         this.updateCard('underperforming', latest.underperforming_nodes, previous?.underperforming_nodes, false);
 
-        // Average Performance Score
-        this.updateCard('performance', latest.avg_performance_score.toFixed(2) + '%', previous?.avg_performance_score, true);
+        // Underperforming Minipools
+        this.updateCard('underperforming-minipools', latest.underperforming_minipools, previous?.underperforming_minipools, false);
 
         // Zero Performance Nodes
         this.updateCard('zero-performance', latest.zero_performance_nodes, previous?.zero_performance_nodes, false);
+
+        // Zero Performance Minipools
+        this.updateCard('zero-performance-minipools', latest.zero_performance_minipools, previous?.zero_performance_minipools, false);
+
+        // Average Performance Score
+        this.updateCard('performance', latest.avg_performance_score.toFixed(2) + '%', previous?.avg_performance_score, true);
     }
 
     updateCard(prefix, value, previousValue, higherIsBetter) {
@@ -252,6 +258,7 @@ class StatsViewer {
         this.renderLostEthTrend();
         this.renderPerformanceScore();
         this.renderZeroPerformance();
+        this.renderPerformanceBandDistribution();
         this.renderUndercollateralised();
     }
 
@@ -268,17 +275,30 @@ class StatsViewer {
             type: 'line',
             data: {
                 labels: data.map(s => this.formatDate(s.date)),
-                datasets: [{
-                    label: 'Underperforming Nodes',
-                    data: data.map(s => s.underperforming_nodes),
-                    borderColor: '#ef4444',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    fill: true
-                }]
+                datasets: [
+                    {
+                        label: 'Underperforming Nodes',
+                        data: data.map(s => s.underperforming_nodes),
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Underperforming Minipools',
+                        data: data.map(s => s.underperforming_minipools),
+                        borderColor: '#f97316',
+                        backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        yAxisID: 'y'
+                    }
+                ]
             },
-            options: this.getChartOptions('Number of Nodes')
+            options: this.getChartOptions('Count')
         });
     }
 
@@ -348,17 +368,224 @@ class StatsViewer {
             type: 'line',
             data: {
                 labels: data.map(s => this.formatDate(s.date)),
-                datasets: [{
-                    label: 'Zero Performance Nodes',
-                    data: data.map(s => s.zero_performance_nodes),
-                    borderColor: '#dc2626',
-                    backgroundColor: 'rgba(220, 38, 38, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    fill: true
-                }]
+                datasets: [
+                    {
+                        label: 'Zero Performance Nodes',
+                        data: data.map(s => s.zero_performance_nodes),
+                        borderColor: '#dc2626',
+                        backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Zero Performance Minipools',
+                        data: data.map(s => s.zero_performance_minipools),
+                        borderColor: '#ea580c',
+                        backgroundColor: 'rgba(234, 88, 12, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        yAxisID: 'y'
+                    }
+                ]
             },
-            options: this.getChartOptions('Number of Nodes')
+            options: this.getChartOptions('Count')
+        });
+    }
+
+    renderPerformanceBandDistribution() {
+        const ctx = document.getElementById('performanceBandChart');
+        if (this.charts.performanceBand) {
+            this.charts.performanceBand.destroy();
+        }
+
+        const data = this.filteredData.slice().reverse();
+
+        // Detect dark mode
+        const isDarkMode = document.body.classList.contains('theme-dark') ||
+                          (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches &&
+                           !document.body.classList.contains('theme-light'));
+        const textColor = isDarkMode ? '#e5e7eb' : '#374151';
+        const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)';
+
+        this.charts.performanceBand = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.map(s => this.formatDate(s.date)),
+                datasets: [
+                    {
+                        label: '0% Critical',
+                        data: data.map(s => s.perf_band_0 || 0),
+                        backgroundColor: '#7c3aed',
+                        borderColor: '#7c3aed',
+                        borderWidth: 0,
+                        fill: true,
+                        stack: 'performance',
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 0
+                    },
+                    {
+                        label: '0-50% Poor',
+                        data: data.map(s => s.perf_band_0_50 || 0),
+                        backgroundColor: '#ef4444',
+                        borderColor: '#ef4444',
+                        borderWidth: 0,
+                        fill: true,
+                        stack: 'performance',
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 0
+                    },
+                    {
+                        label: '50-80% Underperforming',
+                        data: data.map(s => s.perf_band_50_80 || 0),
+                        backgroundColor: '#ec4899',
+                        borderColor: '#ec4899',
+                        borderWidth: 0,
+                        fill: true,
+                        stack: 'performance',
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 0
+                    },
+                    {
+                        label: '80-90% Acceptable',
+                        data: data.map(s => s.perf_band_80_90 || 0),
+                        backgroundColor: '#f97316',
+                        borderColor: '#f97316',
+                        borderWidth: 0,
+                        fill: true,
+                        stack: 'performance',
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 0
+                    },
+                    {
+                        label: '90-95% Good',
+                        data: data.map(s => s.perf_band_90_95 || 0),
+                        backgroundColor: '#facc15',
+                        borderColor: '#facc15',
+                        borderWidth: 0,
+                        fill: true,
+                        stack: 'performance',
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 0
+                    },
+                    {
+                        label: '95-99.5% Very Good',
+                        data: data.map(s => s.perf_band_95_99_5 || 0),
+                        backgroundColor: '#84cc16',
+                        borderColor: '#84cc16',
+                        borderWidth: 0,
+                        fill: true,
+                        stack: 'performance',
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 0
+                    },
+                    {
+                        label: '99.5-100% Excellent',
+                        data: data.map(s => s.perf_band_99_5_100 || 0),
+                        backgroundColor: '#10b981',
+                        borderColor: '#10b981',
+                        borderWidth: 0,
+                        fill: true,
+                        stack: 'performance',
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 15,
+                            font: {
+                                size: 11,
+                                family: 'Inter, sans-serif'
+                            },
+                            color: textColor
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: {
+                            size: 13,
+                            family: 'Inter, sans-serif'
+                        },
+                        bodyFont: {
+                            size: 12,
+                            family: 'Inter, sans-serif'
+                        },
+                        cornerRadius: 6,
+                        callbacks: {
+                            footer: function(tooltipItems) {
+                                let total = 0;
+                                tooltipItems.forEach(item => {
+                                    total += item.parsed.y;
+                                });
+                                return '\nTotal Active: ' + total.toLocaleString();
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        stacked: true,
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45,
+                            font: {
+                                size: 11,
+                                family: 'Inter, sans-serif'
+                            },
+                            color: textColor
+                        }
+                    },
+                    y: {
+                        stacked: true,
+                        grid: {
+                            color: gridColor
+                        },
+                        ticks: {
+                            font: {
+                                size: 11,
+                                family: 'Inter, sans-serif'
+                            },
+                            color: textColor
+                        },
+                        title: {
+                            display: true,
+                            text: 'Active Minipools',
+                            font: {
+                                size: 12,
+                                family: 'Inter, sans-serif',
+                                weight: '600'
+                            },
+                            color: textColor
+                        }
+                    }
+                }
+            }
         });
     }
 
@@ -389,6 +616,13 @@ class StatsViewer {
     }
 
     getChartOptions(yAxisLabel, yAxisConfig = {}) {
+        // Detect dark mode
+        const isDarkMode = document.body.classList.contains('theme-dark') ||
+                          (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches &&
+                           !document.body.classList.contains('theme-light'));
+        const textColor = isDarkMode ? '#e5e7eb' : '#374151';
+        const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)';
+
         return {
             responsive: true,
             maintainAspectRatio: false,
@@ -402,7 +636,8 @@ class StatsViewer {
                         font: {
                             size: 12,
                             family: 'Inter, sans-serif'
-                        }
+                        },
+                        color: textColor
                     }
                 },
                 tooltip: {
@@ -430,19 +665,21 @@ class StatsViewer {
                         font: {
                             size: 11,
                             family: 'Inter, sans-serif'
-                        }
+                        },
+                        color: textColor
                     }
                 },
                 y: {
                     ...yAxisConfig,
                     grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
+                        color: gridColor
                     },
                     ticks: {
                         font: {
                             size: 11,
                             family: 'Inter, sans-serif'
-                        }
+                        },
+                        color: textColor
                     },
                     title: {
                         display: true,
@@ -451,7 +688,8 @@ class StatsViewer {
                             size: 12,
                             family: 'Inter, sans-serif',
                             weight: '600'
-                        }
+                        },
+                        color: textColor
                     }
                 }
             },

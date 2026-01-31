@@ -7,7 +7,7 @@
 
     <!-- Reuse existing styles -->
     <link rel="stylesheet" href="../assets/css/styles.css">
-    <link rel="stylesheet" href="assets/css/stats.css">
+    <link rel="stylesheet" href="assets/css/stats.css?v=2.1">
 
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -58,11 +58,29 @@
 
             <div class="summary-card glass-panel">
                 <div class="card-header">
+                    <span class="card-icon">🔶</span>
+                    <span class="card-title">Underperforming Minipools</span>
+                </div>
+                <div class="card-value" id="underperforming-minipools-value">--</div>
+                <div class="card-change" id="underperforming-minipools-change">--</div>
+            </div>
+
+            <div class="summary-card glass-panel">
+                <div class="card-header">
                     <span class="card-icon">⭕</span>
                     <span class="card-title">Zero Performance Nodes</span>
                 </div>
                 <div class="card-value" id="zero-performance-value">--</div>
                 <div class="card-change" id="zero-performance-change">--</div>
+            </div>
+
+            <div class="summary-card glass-panel">
+                <div class="card-header">
+                    <span class="card-icon">🔻</span>
+                    <span class="card-title">Zero Performance Minipools</span>
+                </div>
+                <div class="card-value" id="zero-performance-minipools-value">--</div>
+                <div class="card-change" id="zero-performance-minipools-change">--</div>
             </div>
 
             <div class="summary-card glass-panel">
@@ -80,8 +98,8 @@
             <!-- Underperforming Nodes Trend -->
             <div class="chart-container glass-panel">
                 <div class="chart-header">
-                    <h2 class="chart-title">Underperforming Nodes Trend</h2>
-                    <p class="chart-subtitle">Nodes below 80% performance threshold</p>
+                    <h2 class="chart-title">Underperforming Performance Trend</h2>
+                    <p class="chart-subtitle">Nodes and minipools below 80% performance threshold</p>
                 </div>
                 <div class="chart-wrapper">
                     <canvas id="underperformingChart"></canvas>
@@ -91,11 +109,22 @@
             <!-- Zero Performance Nodes -->
             <div class="chart-container glass-panel">
                 <div class="chart-header">
-                    <h2 class="chart-title">Zero Performance Nodes</h2>
-                    <p class="chart-subtitle">Nodes with 0% attestation performance (7-day window)</p>
+                    <h2 class="chart-title">Zero Performance Trend</h2>
+                    <p class="chart-subtitle">Nodes and minipools with 0% attestation performance (7-day window)</p>
                 </div>
                 <div class="chart-wrapper">
                     <canvas id="zeroPerformanceChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Performance Band Distribution -->
+            <div class="chart-container glass-panel full-width">
+                <div class="chart-header">
+                    <h2 class="chart-title">Minipool Performance Distribution</h2>
+                    <p class="chart-subtitle">Active minipools by performance band - network health composition</p>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="performanceBandChart"></canvas>
                 </div>
             </div>
 
@@ -152,6 +181,6 @@
     </div>
 
     <!-- Stats Viewer JS -->
-    <script src="assets/js/stats.js?v=1.7"></script>
+    <script src="assets/js/stats.js?v=2.7"></script>
 </body>
 </html>

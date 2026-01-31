@@ -126,9 +126,15 @@
 /* Summary Cards */
 .summary-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1rem;
     margin-bottom: 2rem;
+}
+
+@media (max-width: 1200px) {
+    .summary-cards {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
 }
 
 .summary-card {
@@ -188,6 +194,10 @@
 
 .chart-container {
     padding: 1.5rem;
+}
+
+.chart-container.full-width {
+    grid-column: 1 / -1;
 }
 
 .chart-header {
