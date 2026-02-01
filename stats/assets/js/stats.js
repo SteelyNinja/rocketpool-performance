@@ -416,7 +416,7 @@ class StatsViewer {
                 labels: data.map(s => this.formatDate(s.date)),
                 datasets: [
                     {
-                        label: '0% Critical',
+                        label: '0% Bro, just get rETH',
                         data: data.map(s => s.perf_band_0 || 0),
                         backgroundColor: '#7c3aed',
                         borderColor: '#7c3aed',
@@ -428,7 +428,7 @@ class StatsViewer {
                         pointHoverRadius: 0
                     },
                     {
-                        label: '0-50% Poor',
+                        label: '0-50% Absolutely Dreadful',
                         data: data.map(s => s.perf_band_0_50 || 0),
                         backgroundColor: '#ef4444',
                         borderColor: '#ef4444',
@@ -440,7 +440,7 @@ class StatsViewer {
                         pointHoverRadius: 0
                     },
                     {
-                        label: '50-80% Underperforming',
+                        label: '50-80% Rather Embarrassing',
                         data: data.map(s => s.perf_band_50_80 || 0),
                         backgroundColor: '#ec4899',
                         borderColor: '#ec4899',
@@ -452,7 +452,7 @@ class StatsViewer {
                         pointHoverRadius: 0
                     },
                     {
-                        label: '80-90% Acceptable',
+                        label: '80-90% Bit Concerning',
                         data: data.map(s => s.perf_band_80_90 || 0),
                         backgroundColor: '#f97316',
                         borderColor: '#f97316',
@@ -464,7 +464,7 @@ class StatsViewer {
                         pointHoverRadius: 0
                     },
                     {
-                        label: '90-95% Good',
+                        label: '90-95% Needs Attention',
                         data: data.map(s => s.perf_band_90_95 || 0),
                         backgroundColor: '#facc15',
                         borderColor: '#facc15',
@@ -476,7 +476,7 @@ class StatsViewer {
                         pointHoverRadius: 0
                     },
                     {
-                        label: '95-99.5% Very Good',
+                        label: '95-99.5% Acceptable',
                         data: data.map(s => s.perf_band_95_99_5 || 0),
                         backgroundColor: '#84cc16',
                         borderColor: '#84cc16',
