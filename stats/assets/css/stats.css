@@ -80,6 +80,21 @@
     border-color: var(--glass-border-hover);
 }
 
+/* Wide View Layout Override */
+body.wide-view .container {
+  max-width: none;
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+@media (max-width: 768px) {
+  body.wide-view .container {
+    max-width: 1400px;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
 /* Time Range Selector */
 .time-range-selector {
     display: flex;

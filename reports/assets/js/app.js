@@ -133,6 +133,7 @@ class RocketPoolDashboard {
 
   async init() {
     this.initTheme();
+    this.initWidthToggle();
     await this.loadSummaryData();
     await this.loadNotesData();
     this.setupDropdowns();
@@ -142,6 +143,7 @@ class RocketPoolDashboard {
     this.setupFusakaToggle();
     this.setupBelow32EthToggle();
     this.setupThemeToggle();
+    this.setupWidthToggle();
     this.setupNoteModal();
     await this.loadReport();
     this.scheduleAutoRefresh();
@@ -730,6 +732,62 @@ class RocketPoolDashboard {
     
     this.updateResolvedTheme();
     this.applyTheme();
+  }
+
+  // Wide View management methods
+  initWidthToggle() {
+    console.log('Initialising wide view system');
+    const storedWidth = localStorage.getItem('rocketpool-wideview');
+    const isWideView = storedWidth === 'true';
+
+    if (isWideView) {
+      document.body.classList.add('wide-view');
+    }
+
+    this.updateWidthToggleState();
+  }
+
+  setupWidthToggle() {
+    const widthToggle = document.getElementById('wide-view-toggle');
+    if (!widthToggle) {
+      console.warn('Wide view toggle button not found in DOM');
+      return;
+    }
+
+    console.log('Setting up wide view toggle button');
+    widthToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleWideView();
+    });
+  }
+
+  toggleWideView() {
+    const isCurrentlyWide = document.body.classList.contains('wide-view');
+
+    if (isCurrentlyWide) {
+      document.body.classList.remove('wide-view');
+      localStorage.setItem('rocketpool-wideview', 'false');
+    } else {
+      document.body.classList.add('wide-view');
+      localStorage.setItem('rocketpool-wideview', 'true');
+    }
+
+    this.updateWidthToggleState();
+  }
+
+  updateWidthToggleState() {
+    const widthToggle = document.getElementById('wide-view-toggle');
+    if (!widthToggle) return;
+
+    const isWide = document.body.classList.contains('wide-view');
+
+    if (isWide) {
+      widthToggle.classList.add('active');
+      widthToggle.title = 'Wide view enabled. Click to return to centred layout.';
+    } else {
+      widthToggle.classList.remove('active');
+      widthToggle.title = 'Centred layout. Click to expand to full width.';
+    }
   }
 
   updateSelectedItem(items, selectedValue) {

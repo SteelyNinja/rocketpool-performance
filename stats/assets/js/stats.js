@@ -115,6 +115,71 @@ class ThemeManager {
     }
 }
 
+/**
+ * Width Manager
+ * Handles wide view toggle with localStorage persistence
+ */
+class WidthManager {
+    constructor() {
+        this.init();
+    }
+
+    init() {
+        const storedWidth = localStorage.getItem('rocketpool-wideview');
+        const isWideView = storedWidth === 'true';
+
+        if (isWideView) {
+            document.body.classList.add('wide-view');
+        }
+
+        this.setupWidthToggle();
+    }
+
+    setupWidthToggle() {
+        const widthToggle = document.getElementById('wide-view-toggle');
+        if (!widthToggle) {
+            console.warn('Wide view toggle button not found');
+            return;
+        }
+
+        this.updateWidthToggleState();
+
+        widthToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleWideView();
+        });
+    }
+
+    toggleWideView() {
+        const isCurrentlyWide = document.body.classList.contains('wide-view');
+
+        if (isCurrentlyWide) {
+            document.body.classList.remove('wide-view');
+            localStorage.setItem('rocketpool-wideview', 'false');
+        } else {
+            document.body.classList.add('wide-view');
+            localStorage.setItem('rocketpool-wideview', 'true');
+        }
+
+        this.updateWidthToggleState();
+    }
+
+    updateWidthToggleState() {
+        const widthToggle = document.getElementById('wide-view-toggle');
+        if (!widthToggle) return;
+
+        const isWide = document.body.classList.contains('wide-view');
+
+        if (isWide) {
+            widthToggle.classList.add('active');
+            widthToggle.title = 'Wide view enabled. Click to return to centred layout.';
+        } else {
+            widthToggle.classList.remove('active');
+            widthToggle.title = 'Centred layout. Click to expand to full width.';
+        }
+    }
+}
+
 class StatsViewer {
     constructor() {
         this.timeRange = 'all'; // Default: All time
@@ -712,6 +777,7 @@ class StatsViewer {
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize theme manager first
     const themeManager = new ThemeManager();
+    const widthManager = new WidthManager();
 
     // Then initialize stats viewer
     const viewer = new StatsViewer();
