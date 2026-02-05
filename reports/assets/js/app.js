@@ -2230,14 +2230,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Rotating facts about Saturn I
   const SATURN_FACTS = [
-    "🚀 Saturn 1 strengthens Rocket Pool's role in Ethereum staking",
-    "🧱 Decentralisation only works if it can scale sustainably",
-    "⚖️ Saturn 1 aligns operators, stakers, and protocol incentives",
-    "🚀 Rocket Pool evolves without compromising decentralisation",
-    "🛡️ Protocol resilience improves when operators can grow responsibly",
-    "🌍 A decentralised alternative that actually scales",
-    "❤️ Saturn 1 reflects what decentralisation should look like",
-    "🤝 Empowering individuals, not institutions"
+    "💎 Earn staking rewards with rETH whilst keeping capital active in DeFi",
+    "🚀 Saturn 1 removes capacity limits so rETH can scale with Ethereum",
+    "🛡️ Hold rETH to support decentralisation, earn yield, all simultaneously",
+    "⚡ rETH democratises Ethereum staking by lowering barriers to entry",
+    "🌊 Liquid staking without compromise through rETH security and flexibility",
+    "📈 Saturn 1 boosts capital efficiency making rETH more competitive",
+    "🔥 No locks, no limits, rETH keeps your ETH productive 24/7",
+    "🌍 rETH is the liquid staking token built on true decentralisation"
   ];
 
   let currentFactIndex = 0;
