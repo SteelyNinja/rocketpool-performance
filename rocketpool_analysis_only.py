@@ -140,12 +140,13 @@ def get_all_validator_statuses(client, validators):
     print(f"Got status for {len(validator_statuses)} validators")
     return validator_statuses, latest_epoch
 
-def get_active_validators(client, validators):
+def get_active_validators(client, validators, validator_statuses=None):
     """Get only active validators (exclude withdrawn, exited, and pending ones)."""
     print(f"Filtering for active validators...")
     
-    # Get all validator statuses first
-    validator_statuses, latest_epoch = get_all_validator_statuses(client, validators)
+    # Get all validator statuses first (if not provided)
+    if validator_statuses is None:
+        validator_statuses, _ = get_all_validator_statuses(client, validators)
     
     # Filter for active validators
     active_validators = []
@@ -183,7 +184,7 @@ def get_database_retention_info(client):
         print(f"Error getting database retention info: {e}")
         return {'oldest_epoch': None, 'newest_epoch': None, 'total_days': None}
 
-def find_last_attestation_extended(client, val_id_list, oldest_epoch, newest_epoch):
+def find_last_attestation_extended(client, val_id_list, oldest_epoch, search_end_epoch, newest_epoch):
     """Extended search to find the actual last attestation across the full database range."""
     try:
         extended_query = f"""
@@ -193,9 +194,10 @@ def find_last_attestation_extended(client, val_id_list, oldest_epoch, newest_epo
             MIN(epoch) as first_epoch_in_db,
             MAX(epoch) as last_epoch_in_db
         FROM validators_summary 
+        PREWHERE epoch >= {oldest_epoch} AND epoch <= {search_end_epoch}
         WHERE val_id IN ({val_id_list}) 
         AND epoch >= {oldest_epoch} 
-        AND epoch <= {newest_epoch}
+        AND epoch <= {search_end_epoch}
         GROUP BY val_id
         """
         
@@ -254,7 +256,7 @@ def query_attestation_performance(client, validators, latest_epoch, epochs_to_an
     print(f"Database retention: {total_days} days (epochs {oldest_epoch} to {latest_epoch})")
     
     # Process in batches and aggregate immediately to save memory
-    batch_size = 200  # Smaller batches for memory efficiency
+    batch_size = 1000  # Larger batches to reduce ClickHouse round-trips
     
     # Use aggregated data structure instead of storing all records
     validator_aggregates = {}
@@ -266,17 +268,20 @@ def query_attestation_performance(client, validators, latest_epoch, epochs_to_an
         try:
             val_id_list = ','.join([str(v['val_id']) for v in batch])
             
-            # Query aggregated performance data for the reporting period
+            # Query aggregated performance data for the reporting period (single query)
             performance_query = f"""
             SELECT
                 val_id,
-                SUM(att_earned_reward) as total_earned,
-                SUM(att_missed_reward) as total_missed,
-                SUM(att_penalty) as total_penalties,
+                SUM(ifNull(att_earned_reward, 0)) as total_earned,
+                SUM(ifNull(att_missed_reward, 0)) as total_missed,
+                SUM(ifNull(att_penalty, 0)) as total_penalties,
                 COUNT(*) as total_epochs,
-                SUM(CASE WHEN att_happened = 1 THEN 1 ELSE 0 END) as successful_attestations,
-                MAX(CASE WHEN att_happened = 1 THEN epoch ELSE NULL END) as last_attestation_epoch
+                SUM(att_happened = 1) as successful_attestations,
+                MAXIf(epoch, att_happened = 1) as last_attestation_epoch,
+                MAXIf(val_balance, epoch = {end_epoch}) as val_balance,
+                MAXIf(val_effective_balance, epoch = {end_epoch}) as val_effective_balance
             FROM validators_summary
+            PREWHERE epoch >= {start_epoch} AND epoch <= {end_epoch}
             WHERE val_id IN ({val_id_list})
             AND epoch >= {start_epoch}
             AND epoch <= {end_epoch}
@@ -285,34 +290,12 @@ def query_attestation_performance(client, validators, latest_epoch, epochs_to_an
             
             result = client.query(performance_query)
 
-            # Query validator balances at latest epoch
-            balance_query = f"""
-            SELECT
-                val_id,
-                val_balance,
-                val_effective_balance
-            FROM validators_summary
-            WHERE val_id IN ({val_id_list})
-            AND epoch = {end_epoch}
-            """
-
-            balance_result = client.query(balance_query)
-
-            # Create balance lookup dictionary
-            validator_balances = {}
-            for row in balance_result.result_rows:
-                val_id, val_balance, val_effective_balance = row
-                validator_balances[val_id] = {
-                    'val_balance': val_balance or 0,
-                    'val_effective_balance': val_effective_balance or 0
-                }
-
             # Get extended attestation data for validators with no recent attestations
             validators_needing_extended_search = []
             validators_with_recent_attestations = {}
             
             for row in result.result_rows:
-                val_id, total_earned, total_missed, total_penalties, total_epochs, successful_attestations, last_attestation_epoch = row
+                val_id, total_earned, total_missed, total_penalties, total_epochs, successful_attestations, last_attestation_epoch, val_balance, val_effective_balance = row
                 
                 if last_attestation_epoch is not None:
                     # Found attestation in reporting period
@@ -334,13 +317,16 @@ def query_attestation_performance(client, validators, latest_epoch, epochs_to_an
             extended_attestations = {}
             if validators_needing_extended_search and oldest_epoch is not None:
                 extended_val_id_list = ','.join([str(v) for v in validators_needing_extended_search])
+                search_end_epoch = start_epoch - 1
+                if search_end_epoch < oldest_epoch:
+                    search_end_epoch = oldest_epoch
                 extended_attestations = find_last_attestation_extended(
-                    client, extended_val_id_list, oldest_epoch, latest_epoch
+                    client, extended_val_id_list, oldest_epoch, search_end_epoch, latest_epoch
                 )
             
             # Process aggregated results
             for row in result.result_rows:
-                val_id, total_earned, total_missed, total_penalties, total_epochs, successful_attestations, last_attestation_epoch = row
+                val_id, total_earned, total_missed, total_penalties, total_epochs, successful_attestations, last_attestation_epoch, val_balance, val_effective_balance = row
                 
                 # Determine last attestation info
                 if val_id in validators_with_recent_attestations:
@@ -364,7 +350,10 @@ def query_attestation_performance(client, validators, latest_epoch, epochs_to_an
                     performance_score = 0.0 if last_attestation_epoch is None else None
 
                     # Get balance data for this validator
-                    balance_data = validator_balances.get(val_id, {'val_balance': 0, 'val_effective_balance': 0})
+                    balance_data = {
+                        'val_balance': val_balance or 0,
+                        'val_effective_balance': val_effective_balance or 0
+                    }
 
                     validator_aggregates[val_id] = {
                         'val_id': val_id,

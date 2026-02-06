@@ -69,7 +69,7 @@ def run_multi_analysis(output_dir='reports'):
     print(f"Latest epoch: {latest_epoch}")
     
     all_validator_statuses, _ = get_all_validator_statuses(client, validators)
-    active_validators = get_active_validators(client, validators)
+    active_validators = get_active_validators(client, validators, all_validator_statuses)
     
     print(f"Found {len(active_validators)} active validators")
 

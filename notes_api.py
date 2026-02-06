@@ -20,8 +20,10 @@ app = FastAPI(title="Rocket Pool Notes API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://rocketpool.steely-test.org",
-        "http://rocketpool.steely-test.org",
+        "https://rocket-performance.net",
+        "http://rocket-performance.net",
+        "https://rocketpool.steely-test.org",  # Keep temporarily during migration
+        "http://rocketpool.steely-test.org",  # Keep temporarily during migration
         "http://localhost:3000",  # For local development
     ],
     allow_credentials=True,
