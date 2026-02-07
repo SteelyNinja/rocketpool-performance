@@ -62,6 +62,14 @@ class ThemeManager {
         }
 
         this.updateThemeToggleIcon();
+
+        // Notify chart views so canvas-based text can be redrawn for the active theme.
+        window.dispatchEvent(new CustomEvent('rocketpool-theme-changed', {
+            detail: {
+                theme: this.theme,
+                resolvedTheme: this.resolvedTheme
+            }
+        }));
     }
 
     updateThemeToggleIcon() {
@@ -782,4 +790,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Then initialize stats viewer
     const viewer = new StatsViewer();
     viewer.init();
+
+    // Re-render charts when theme changes so tick/legend text colors update immediately.
+    window.addEventListener('rocketpool-theme-changed', () => {
+        if (!viewer.filteredData || viewer.filteredData.length === 0) {
+            return;
+        }
+        viewer.renderAllCharts();
+    });
 });
