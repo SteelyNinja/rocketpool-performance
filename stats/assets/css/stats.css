@@ -3,23 +3,70 @@
 
 /* Header */
 .header {
+    position: relative;
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 2rem;
     flex-wrap: wrap;
     gap: 1rem;
+    padding: 1.5rem 1.75rem;
+    border-radius: 1rem;
+    border: 1px solid var(--glass-border);
+    background: linear-gradient(135deg, rgba(226, 238, 255, 0.78), rgba(219, 234, 254, 0.56));
+    backdrop-filter: blur(14px);
+    overflow: hidden;
+}
+
+.header::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(
+            90deg,
+            rgba(37, 99, 235, 0.28) 0%,
+            rgba(59, 130, 246, 0.18) 34%,
+            rgba(59, 130, 246, 0.02) 72%
+        ),
+        url("../../../assets/images/header-banner.webp?v=20260207");
+    background-size: cover;
+    background-position: left center;
+    opacity: 0.32;
+    filter: saturate(1.02) brightness(1.02);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.header::after {
+    content: "";
+    position: absolute;
+    inset: -35% -14% -35% -14%;
+    background:
+        linear-gradient(
+            92deg,
+            rgba(59, 130, 246, 0) 36%,
+            rgba(96, 165, 250, 0.09) 72%,
+            rgba(147, 197, 253, 0.18) 100%
+        ),
+        radial-gradient(circle at 78% 50%, rgba(191, 219, 254, 0.22), transparent 74%);
+    pointer-events: none;
+    z-index: 0;
 }
 
 .header-content {
     flex: 1;
+    min-width: 320px;
+    padding-right: 6.5rem;
+    position: relative;
+    z-index: 1;
 }
 
 .page-title {
     font-size: var(--font-size-3xl);
     font-weight: 700;
     color: var(--neutral-900);
-    margin: 0 0 0.5rem 0;
+    margin: 0 0 0.4rem 0;
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -32,17 +79,63 @@
 .page-subtitle {
     font-size: var(--font-size-base);
     color: var(--neutral-600);
-    margin: 0;
+    margin: 0 0 0.75rem 0;
+}
+
+.header-meta-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.meta-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.35rem 0.6rem;
+    border-radius: 999px;
+    border: 1px solid var(--glass-border);
+    background: linear-gradient(135deg, var(--glass-bg-light), rgba(139, 92, 246, 0.08));
+}
+
+.meta-pill-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--neutral-500);
+}
+
+.meta-pill-value {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--neutral-700);
+    white-space: nowrap;
 }
 
 .header-controls {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 2;
+}
+
+.header-controls > * + * {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: 0;
 }
 
 .theme-toggle {
-    padding: 0.5rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
     background: var(--glass-bg-light);
     border: 1px solid var(--glass-border);
     border-radius: 0.5rem;
@@ -308,8 +401,24 @@
 
 @media (max-width: 768px) {
     .header {
+        padding: 1.25rem;
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .header-content {
+        width: 100%;
+        min-width: 0;
+        padding-right: 0;
+    }
+
+    .header-controls {
+        position: static;
+        align-self: flex-end;
+    }
+
+    .header-meta-pills {
+        width: 100%;
     }
 
     .page-title {
@@ -348,6 +457,49 @@
 
 /* Dark Mode Support */
 @media (prefers-color-scheme: dark) {
+    body:not(.theme-light) .header {
+        background: linear-gradient(135deg, rgba(7, 21, 42, 0.88), rgba(9, 39, 77, 0.78));
+    }
+
+    body:not(.theme-light) .header::before {
+        background-image:
+            linear-gradient(
+                90deg,
+                rgba(4, 14, 30, 0.70) 0%,
+                rgba(7, 27, 53, 0.60) 34%,
+                rgba(10, 42, 84, 0.48) 68%,
+                rgba(15, 67, 129, 0.30) 100%
+            ),
+            url("../../../assets/images/header-banner.webp?v=20260207");
+        opacity: 0.34;
+        filter: saturate(0.95) brightness(0.95);
+    }
+
+    body:not(.theme-light) .header::after {
+        inset: -35% -14% -35% -14%;
+        background:
+            linear-gradient(
+                92deg,
+                rgba(59, 130, 246, 0) 36%,
+                rgba(59, 130, 246, 0.08) 72%,
+                rgba(59, 130, 246, 0.16) 100%
+            ),
+            radial-gradient(circle at 78% 50%, rgba(96, 165, 250, 0.16), transparent 72%);
+    }
+
+    body:not(.theme-light) .meta-pill {
+        background: rgba(15, 23, 42, 0.58);
+        border-color: rgba(148, 163, 184, 0.25);
+    }
+
+    body:not(.theme-light) .meta-pill-label {
+        color: var(--neutral-400);
+    }
+
+    body:not(.theme-light) .meta-pill-value {
+        color: var(--neutral-200);
+    }
+
     body:not(.theme-light) .page-title,
     body:not(.theme-light) .card-value,
     body:not(.theme-light) .chart-title {

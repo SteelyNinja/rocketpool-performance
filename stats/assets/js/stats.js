@@ -200,6 +200,7 @@ class StatsViewer {
         try {
             this.showLoading();
             await this.loadStatsData();
+            this.updateHeaderMeta();
             this.setupTimeRangeControls();
             this.updateSummaryCards();
             this.renderAllCharts();
@@ -269,10 +270,73 @@ class StatsViewer {
                 // Update range and re-render
                 this.timeRange = e.target.dataset.range;
                 this.filteredData = this.filterDataByTimeRange(this.timeRange);
+                this.updateHeaderMeta();
                 this.updateSummaryCards();
                 this.renderAllCharts();
             });
         });
+    }
+
+    getTimeRangeLabel(range) {
+        if (range === 'all') {
+            return 'All Time';
+        }
+        return `${range} Days`;
+    }
+
+    getLatestSnapshotDate() {
+        if (!this.statsData?.snapshots?.length) {
+            return null;
+        }
+        return this.statsData.snapshots.reduce((latest, snapshot) => {
+            if (!snapshot?.date) {
+                return latest;
+            }
+            if (!latest) {
+                return snapshot.date;
+            }
+            return new Date(snapshot.date) > new Date(latest) ? snapshot.date : latest;
+        }, null);
+    }
+
+    formatLongDate(dateString) {
+        const date = new Date(dateString);
+        if (Number.isNaN(date.getTime())) {
+            return 'Unknown';
+        }
+        return date.toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        });
+    }
+
+    updateHeaderMeta() {
+        const updateEl = document.getElementById('meta-update-value');
+        const snapshotsEl = document.getElementById('meta-snapshots-value');
+        const rangeEl = document.getElementById('meta-range-value');
+
+        if (!updateEl && !snapshotsEl && !rangeEl) {
+            return;
+        }
+
+        const latestSnapshotDate = this.getLatestSnapshotDate();
+        if (updateEl) {
+            updateEl.textContent = latestSnapshotDate
+                ? `${this.formatLongDate(latestSnapshotDate)} @ 01:00 UTC`
+                : 'Daily 01:00 UTC';
+        }
+
+        if (snapshotsEl) {
+            const totalSnapshots = this.statsData?.snapshots?.length || 0;
+            snapshotsEl.textContent = `${totalSnapshots.toLocaleString()} total`;
+        }
+
+        if (rangeEl) {
+            const rangeLabel = this.getTimeRangeLabel(this.timeRange);
+            const visiblePoints = this.filteredData?.length || 0;
+            rangeEl.textContent = `${rangeLabel} (${visiblePoints})`;
+        }
     }
 
     updateSummaryCards() {
@@ -326,6 +390,33 @@ class StatsViewer {
         }
     }
 
+    isDarkMode() {
+        return document.body.classList.contains('theme-dark') ||
+            (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches &&
+             !document.body.classList.contains('theme-light'));
+    }
+
+    getChartTheme() {
+        const darkMode = this.isDarkMode();
+        return {
+            isDarkMode: darkMode,
+            textColor: darkMode ? '#cbd5e1' : '#374151',
+            gridColor: darkMode ? 'rgba(148, 163, 184, 0.16)' : 'rgba(0, 0, 0, 0.05)',
+            tooltipBg: darkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(0, 0, 0, 0.8)'
+        };
+    }
+
+    hexToRgba(hex, alpha) {
+        const value = hex.replace('#', '');
+        const normalized = value.length === 3
+            ? value.split('').map(char => char + char).join('')
+            : value;
+        const r = parseInt(normalized.substring(0, 2), 16);
+        const g = parseInt(normalized.substring(2, 4), 16);
+        const b = parseInt(normalized.substring(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
     renderAllCharts() {
         this.renderUnderperformingTrend();
         this.renderLostEthTrend();
@@ -343,6 +434,11 @@ class StatsViewer {
 
         const data = this.filteredData.slice().reverse(); // Chronological order for charts
         console.log('Rendering underperforming chart with', data.length, 'data points');
+        const theme = this.getChartTheme();
+        const nodeLineColor = theme.isDarkMode ? '#f87171' : '#ef4444';
+        const nodeFillColor = theme.isDarkMode ? 'rgba(248, 113, 113, 0.14)' : 'rgba(239, 68, 68, 0.1)';
+        const minipoolLineColor = theme.isDarkMode ? '#fb923c' : '#f97316';
+        const minipoolFillColor = theme.isDarkMode ? 'rgba(251, 146, 60, 0.14)' : 'rgba(249, 115, 22, 0.1)';
 
         this.charts.underperforming = new Chart(ctx, {
             type: 'line',
@@ -352,8 +448,8 @@ class StatsViewer {
                     {
                         label: 'Underperforming Nodes',
                         data: data.map(s => s.underperforming_nodes),
-                        borderColor: '#ef4444',
-                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        borderColor: nodeLineColor,
+                        backgroundColor: nodeFillColor,
                         borderWidth: 2,
                         tension: 0.4,
                         fill: true,
@@ -362,8 +458,8 @@ class StatsViewer {
                     {
                         label: 'Underperforming Minipools',
                         data: data.map(s => s.underperforming_minipools),
-                        borderColor: '#f97316',
-                        backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                        borderColor: minipoolLineColor,
+                        backgroundColor: minipoolFillColor,
                         borderWidth: 2,
                         tension: 0.4,
                         fill: true,
@@ -382,6 +478,9 @@ class StatsViewer {
         }
 
         const data = this.filteredData.slice().reverse();
+        const theme = this.getChartTheme();
+        const lineColor = theme.isDarkMode ? '#fbbf24' : '#f59e0b';
+        const fillColor = theme.isDarkMode ? 'rgba(251, 191, 36, 0.16)' : 'rgba(245, 158, 11, 0.2)';
 
         this.charts.lostEth = new Chart(ctx, {
             type: 'line',
@@ -390,8 +489,8 @@ class StatsViewer {
                 datasets: [{
                     label: 'Total Lost ETH',
                     data: data.map(s => (s.total_lost_gwei / 1_000_000_000).toFixed(2)),
-                    borderColor: '#f59e0b',
-                    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                    borderColor: lineColor,
+                    backgroundColor: fillColor,
                     borderWidth: 2,
                     tension: 0.4,
                     fill: true
@@ -408,6 +507,9 @@ class StatsViewer {
         }
 
         const data = this.filteredData.slice().reverse();
+        const theme = this.getChartTheme();
+        const lineColor = theme.isDarkMode ? '#60a5fa' : '#2563eb';
+        const fillColor = theme.isDarkMode ? 'rgba(96, 165, 250, 0.14)' : 'rgba(37, 99, 235, 0.1)';
 
         this.charts.performanceScore = new Chart(ctx, {
             type: 'line',
@@ -417,8 +519,8 @@ class StatsViewer {
                     {
                         label: 'Network Avg Performance',
                         data: data.map(s => s.avg_performance_score),
-                        borderColor: '#2563eb',
-                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        borderColor: lineColor,
+                        backgroundColor: fillColor,
                         borderWidth: 2,
                         tension: 0.4,
                         fill: true
@@ -436,6 +538,11 @@ class StatsViewer {
         }
 
         const data = this.filteredData.slice().reverse();
+        const theme = this.getChartTheme();
+        const nodeLineColor = theme.isDarkMode ? '#f87171' : '#dc2626';
+        const nodeFillColor = theme.isDarkMode ? 'rgba(248, 113, 113, 0.14)' : 'rgba(220, 38, 38, 0.1)';
+        const minipoolLineColor = theme.isDarkMode ? '#fb923c' : '#ea580c';
+        const minipoolFillColor = theme.isDarkMode ? 'rgba(251, 146, 60, 0.14)' : 'rgba(234, 88, 12, 0.1)';
 
         this.charts.zeroPerformance = new Chart(ctx, {
             type: 'line',
@@ -445,8 +552,8 @@ class StatsViewer {
                     {
                         label: 'Zero Performance Nodes',
                         data: data.map(s => s.zero_performance_nodes),
-                        borderColor: '#dc2626',
-                        backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                        borderColor: nodeLineColor,
+                        backgroundColor: nodeFillColor,
                         borderWidth: 2,
                         tension: 0.4,
                         fill: true,
@@ -455,8 +562,8 @@ class StatsViewer {
                     {
                         label: 'Zero Performance Minipools',
                         data: data.map(s => s.zero_performance_minipools),
-                        borderColor: '#ea580c',
-                        backgroundColor: 'rgba(234, 88, 12, 0.1)',
+                        borderColor: minipoolLineColor,
+                        backgroundColor: minipoolFillColor,
                         borderWidth: 2,
                         tension: 0.4,
                         fill: true,
@@ -475,13 +582,26 @@ class StatsViewer {
         }
 
         const data = this.filteredData.slice().reverse();
-
-        // Detect dark mode
-        const isDarkMode = document.body.classList.contains('theme-dark') ||
-                          (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches &&
-                           !document.body.classList.contains('theme-light'));
-        const textColor = isDarkMode ? '#e5e7eb' : '#374151';
-        const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)';
+        const theme = this.getChartTheme();
+        const bandFillAlpha = theme.isDarkMode ? 0.28 : 1;
+        const bandBorderWidth = theme.isDarkMode ? 1 : 0;
+        const bandColors = theme.isDarkMode ? {
+            band0: '#a78bfa',
+            band0_50: '#f87171',
+            band50_80: '#fb7185',
+            band80_90: '#fb923c',
+            band90_95: '#fbbf24',
+            band95_99_5: '#4ade80',
+            band99_5_100: '#22d3ee'
+        } : {
+            band0: '#7c3aed',
+            band0_50: '#ef4444',
+            band50_80: '#ec4899',
+            band80_90: '#f97316',
+            band90_95: '#facc15',
+            band95_99_5: '#84cc16',
+            band99_5_100: '#10b981'
+        };
 
         this.charts.performanceBand = new Chart(ctx, {
             type: 'line',
@@ -491,9 +611,9 @@ class StatsViewer {
                     {
                         label: '0% Bro, just get rETH',
                         data: data.map(s => s.perf_band_0 || 0),
-                        backgroundColor: '#7c3aed',
-                        borderColor: '#7c3aed',
-                        borderWidth: 0,
+                        backgroundColor: this.hexToRgba(bandColors.band0, bandFillAlpha),
+                        borderColor: bandColors.band0,
+                        borderWidth: bandBorderWidth,
                         fill: true,
                         stack: 'performance',
                         tension: 0.4,
@@ -503,9 +623,9 @@ class StatsViewer {
                     {
                         label: '0-50% Absolutely Dreadful',
                         data: data.map(s => s.perf_band_0_50 || 0),
-                        backgroundColor: '#ef4444',
-                        borderColor: '#ef4444',
-                        borderWidth: 0,
+                        backgroundColor: this.hexToRgba(bandColors.band0_50, bandFillAlpha),
+                        borderColor: bandColors.band0_50,
+                        borderWidth: bandBorderWidth,
                         fill: true,
                         stack: 'performance',
                         tension: 0.4,
@@ -515,9 +635,9 @@ class StatsViewer {
                     {
                         label: '50-80% Rather Embarrassing',
                         data: data.map(s => s.perf_band_50_80 || 0),
-                        backgroundColor: '#ec4899',
-                        borderColor: '#ec4899',
-                        borderWidth: 0,
+                        backgroundColor: this.hexToRgba(bandColors.band50_80, bandFillAlpha),
+                        borderColor: bandColors.band50_80,
+                        borderWidth: bandBorderWidth,
                         fill: true,
                         stack: 'performance',
                         tension: 0.4,
@@ -527,9 +647,9 @@ class StatsViewer {
                     {
                         label: '80-90% Bit Concerning',
                         data: data.map(s => s.perf_band_80_90 || 0),
-                        backgroundColor: '#f97316',
-                        borderColor: '#f97316',
-                        borderWidth: 0,
+                        backgroundColor: this.hexToRgba(bandColors.band80_90, bandFillAlpha),
+                        borderColor: bandColors.band80_90,
+                        borderWidth: bandBorderWidth,
                         fill: true,
                         stack: 'performance',
                         tension: 0.4,
@@ -539,9 +659,9 @@ class StatsViewer {
                     {
                         label: '90-95% Needs Attention',
                         data: data.map(s => s.perf_band_90_95 || 0),
-                        backgroundColor: '#facc15',
-                        borderColor: '#facc15',
-                        borderWidth: 0,
+                        backgroundColor: this.hexToRgba(bandColors.band90_95, bandFillAlpha),
+                        borderColor: bandColors.band90_95,
+                        borderWidth: bandBorderWidth,
                         fill: true,
                         stack: 'performance',
                         tension: 0.4,
@@ -551,9 +671,9 @@ class StatsViewer {
                     {
                         label: '95-99.5% Acceptable',
                         data: data.map(s => s.perf_band_95_99_5 || 0),
-                        backgroundColor: '#84cc16',
-                        borderColor: '#84cc16',
-                        borderWidth: 0,
+                        backgroundColor: this.hexToRgba(bandColors.band95_99_5, bandFillAlpha),
+                        borderColor: bandColors.band95_99_5,
+                        borderWidth: bandBorderWidth,
                         fill: true,
                         stack: 'performance',
                         tension: 0.4,
@@ -563,9 +683,9 @@ class StatsViewer {
                     {
                         label: '99.5-100% Excellent',
                         data: data.map(s => s.perf_band_99_5_100 || 0),
-                        backgroundColor: '#10b981',
-                        borderColor: '#10b981',
-                        borderWidth: 0,
+                        backgroundColor: this.hexToRgba(bandColors.band99_5_100, bandFillAlpha),
+                        borderColor: bandColors.band99_5_100,
+                        borderWidth: bandBorderWidth,
                         fill: true,
                         stack: 'performance',
                         tension: 0.4,
@@ -592,11 +712,11 @@ class StatsViewer {
                                 size: 11,
                                 family: 'Inter, sans-serif'
                             },
-                            color: textColor
+                            color: theme.textColor
                         }
                     },
                     tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        backgroundColor: theme.tooltipBg,
                         padding: 12,
                         titleFont: {
                             size: 13,
@@ -631,20 +751,20 @@ class StatsViewer {
                                 size: 11,
                                 family: 'Inter, sans-serif'
                             },
-                            color: textColor
+                            color: theme.textColor
                         }
                     },
                     y: {
                         stacked: true,
                         grid: {
-                            color: gridColor
+                            color: theme.gridColor
                         },
                         ticks: {
                             font: {
                                 size: 11,
                                 family: 'Inter, sans-serif'
                             },
-                            color: textColor
+                            color: theme.textColor
                         },
                         title: {
                             display: true,
@@ -654,7 +774,7 @@ class StatsViewer {
                                 family: 'Inter, sans-serif',
                                 weight: '600'
                             },
-                            color: textColor
+                            color: theme.textColor
                         }
                     }
                 }
@@ -669,6 +789,9 @@ class StatsViewer {
         }
 
         const data = this.filteredData.slice().reverse();
+        const theme = this.getChartTheme();
+        const lineColor = theme.isDarkMode ? '#fb923c' : '#ea580c';
+        const fillColor = theme.isDarkMode ? 'rgba(251, 146, 60, 0.14)' : 'rgba(234, 88, 12, 0.1)';
 
         this.charts.undercollateralised = new Chart(ctx, {
             type: 'line',
@@ -677,8 +800,8 @@ class StatsViewer {
                 datasets: [{
                     label: 'Below 31.9 ETH',
                     data: data.map(s => s.below_31_9_eth),
-                    borderColor: '#ea580c',
-                    backgroundColor: 'rgba(234, 88, 12, 0.1)',
+                    borderColor: lineColor,
+                    backgroundColor: fillColor,
                     borderWidth: 2,
                     tension: 0.4,
                     fill: true
@@ -689,12 +812,7 @@ class StatsViewer {
     }
 
     getChartOptions(yAxisLabel, yAxisConfig = {}) {
-        // Detect dark mode
-        const isDarkMode = document.body.classList.contains('theme-dark') ||
-                          (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches &&
-                           !document.body.classList.contains('theme-light'));
-        const textColor = isDarkMode ? '#e5e7eb' : '#374151';
-        const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)';
+        const theme = this.getChartTheme();
 
         return {
             responsive: true,
@@ -710,11 +828,11 @@ class StatsViewer {
                             size: 12,
                             family: 'Inter, sans-serif'
                         },
-                        color: textColor
+                        color: theme.textColor
                     }
                 },
                 tooltip: {
-                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    backgroundColor: theme.tooltipBg,
                     padding: 12,
                     titleFont: {
                         size: 13,
@@ -739,20 +857,20 @@ class StatsViewer {
                             size: 11,
                             family: 'Inter, sans-serif'
                         },
-                        color: textColor
+                        color: theme.textColor
                     }
                 },
                 y: {
                     ...yAxisConfig,
                     grid: {
-                        color: gridColor
+                        color: theme.gridColor
                     },
                     ticks: {
                         font: {
                             size: 11,
                             family: 'Inter, sans-serif'
                         },
-                        color: textColor
+                        color: theme.textColor
                     },
                     title: {
                         display: true,
@@ -762,7 +880,7 @@ class StatsViewer {
                             family: 'Inter, sans-serif',
                             weight: '600'
                         },
-                        color: textColor
+                        color: theme.textColor
                     }
                 }
             },
