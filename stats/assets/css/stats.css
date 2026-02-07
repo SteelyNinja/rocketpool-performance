@@ -1,11 +1,5 @@
 /* Stats Page Specific Styles */
-
-/* Container */
-.container {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 2rem 1rem;
-}
+/* .container and wide-view spacing come from ../assets/css/styles.css layout tokens */
 
 /* Header */
 .header {
@@ -80,21 +74,6 @@
     border-color: var(--glass-border-hover);
 }
 
-/* Wide View Layout Override */
-body.wide-view .container {
-  max-width: none;
-  padding-left: 2rem;
-  padding-right: 2rem;
-}
-
-@media (max-width: 768px) {
-  body.wide-view .container {
-    max-width: 1400px;
-    padding-left: 1rem;
-    padding-right: 1rem;
-  }
-}
-
 /* Time Range Selector */
 .time-range-selector {
     display: flex;
@@ -102,6 +81,19 @@ body.wide-view .container {
     gap: 1rem;
     padding: 1rem 1.5rem;
     margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+.back-to-dashboard-btn {
+    white-space: nowrap;
+}
+
+.time-range-controls {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    justify-content: flex-end;
     flex-wrap: wrap;
 }
 
@@ -331,6 +323,16 @@ body.wide-view .container {
     .time-range-selector {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .time-range-controls {
+        width: 100%;
+        margin-left: 0;
+        justify-content: flex-start;
+    }
+
+    .back-to-dashboard-btn {
+        width: auto;
     }
 
     .btn-group {

@@ -64,11 +64,29 @@
   --font-size-2xl: 1.5rem;
   --font-size-3xl: 2rem;
 
+  /* Shared page layout tokens */
+  --layout-container-max-width: 1200px;
+  --layout-container-padding-desktop: 24px;
+  --layout-container-padding-mobile: 16px;
+  --layout-wide-padding-desktop: 2rem;
+  --layout-wide-padding-mobile: 24px;
+
   /* Modal-specific variables (light mode defaults) */
   --glass-bg: rgba(255, 255, 255, 0.95);
   --text-color: var(--neutral-700);
   --border-color: var(--neutral-300);
   --hover-bg: var(--neutral-200);
+
+  /* Background watermark */
+  --watermark-image: url("../images/watermark.webp?v=20260207");
+  --watermark-size: 1200px auto;
+  --watermark-opacity: 0.08;
+  --watermark-filter: grayscale(1) brightness(1);
+
+  /* Header halo */
+  --header-halo-opacity: 0.28;
+  --header-banner-image: url("../images/header-banner.webp?v=20260207");
+  --header-banner-opacity: 0.22;
 }
 
 /* Dark mode overrides - only apply if not forcing light mode */
@@ -78,6 +96,11 @@
     --glass-bg-dark: rgba(15, 23, 42, 0.4);
     --glass-border: rgba(37, 99, 235, 0.2);
     --glass-border-hover: rgba(37, 99, 235, 0.3);
+
+    --watermark-opacity: 0.06;
+    --watermark-filter: grayscale(1) brightness(0.7);
+    --header-halo-opacity: 0.22;
+    --header-banner-opacity: 0.16;
 
     /* Modal variables for system dark mode */
     --glass-bg: rgba(30, 30, 40, 0.95);
@@ -94,6 +117,9 @@ body.theme-light {
   --glass-border: rgba(37, 99, 235, 0.15) !important;
   --glass-border-hover: rgba(37, 99, 235, 0.25) !important;
 
+  --watermark-opacity: 0.08 !important;
+  --watermark-filter: grayscale(1) brightness(1) !important;
+
   /* Modal variables for light mode */
   --glass-bg: rgba(255, 255, 255, 0.95) !important;
   --text-color: var(--neutral-700) !important;
@@ -107,6 +133,11 @@ body.theme-dark {
   --glass-bg-dark: rgba(15, 23, 42, 0.4) !important;
   --glass-border: rgba(37, 99, 235, 0.2) !important;
   --glass-border-hover: rgba(37, 99, 235, 0.3) !important;
+
+  --watermark-opacity: 0.06 !important;
+  --watermark-filter: grayscale(1) brightness(0.7) !important;
+  --header-halo-opacity: 0.22 !important;
+  --header-banner-opacity: 0.16 !important;
 
   /* Modal variables for dark mode */
   --glass-bg: rgba(30, 30, 40, 0.95) !important;
@@ -133,9 +164,30 @@ body {
   line-height: 1.5;
   color: var(--neutral-700);
   background: linear-gradient(135deg, var(--neutral-50) 0%, var(--neutral-100) 50%, var(--neutral-50) 100%);
+  isolation: isolate;
   min-height: 100vh;
+  position: relative;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: var(--watermark-image);
+  background-repeat: repeat;
+  background-size: var(--watermark-size);
+  background-position: center;
+  opacity: var(--watermark-opacity);
+  filter: var(--watermark-filter);
+  pointer-events: none;
+  z-index: 0;
+}
+
+body > * {
+  position: relative;
+  z-index: 1;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -153,6 +205,16 @@ body.theme-light {
 body.theme-dark {
   color: var(--neutral-200);
   background: linear-gradient(135deg, var(--neutral-900) 0%, var(--neutral-800) 50%, var(--neutral-900) 100%);
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not(.theme-light):not(.theme-dark) .page-header {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.7), rgba(15, 23, 42, 0.45));
+  }
+}
+
+body.theme-dark .page-header {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.7), rgba(15, 23, 42, 0.45));
 }
 
 /* Glass Component System */
@@ -665,9 +727,9 @@ body.theme-dark h3 {
 
 /* Layout */
 .container {
-  max-width: 1200px;
+  max-width: var(--layout-container-max-width);
   margin: 0 auto;
-  padding: 24px;
+  padding: var(--layout-container-padding-desktop);
 }
 
 /* Page Header */
@@ -675,6 +737,36 @@ body.theme-dark h3 {
   position: relative;
   text-align: center;
   margin-bottom: 24px;
+  padding: 24px 24px 28px;
+  border-radius: 16px;
+  border: 1px solid var(--glass-border);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.55));
+  overflow: hidden;
+  backdrop-filter: blur(16px);
+}
+
+.page-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(90deg, rgba(15, 23, 42, 0.18), rgba(15, 23, 42, 0) 60%),
+    var(--header-banner-image);
+  background-size: cover;
+  background-position: left center;
+  opacity: var(--header-banner-opacity);
+  filter: saturate(0.85) brightness(1.05);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.page-header::after {
+  content: "";
+  position: absolute;
+  inset: -30% 30% -30% -10%;
+  background: radial-gradient(circle at 30% 55%, rgba(96, 165, 250, var(--header-halo-opacity)), transparent 65%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .page-title {
@@ -682,6 +774,8 @@ body.theme-dark h3 {
   color: var(--rp-orange-600);
   font-size: var(--font-size-3xl);
   font-weight: 700;
+  position: relative;
+  z-index: 1;
 }
 
 .header-controls {
@@ -691,6 +785,7 @@ body.theme-dark h3 {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  z-index: 2;
 }
 
 /* Neon Error "lack-of" styling */
@@ -712,31 +807,39 @@ body.theme-dark h3 {
   0%, 100% {
     transform: rotate(-4deg);
     text-shadow:
-      0 0 5px #ff0066,
-      0 0 10px #ff0066,
-      0 0 20px #ff0066,
-      0 0 40px #ff0066,
-      0 0 80px #ff0066;
-    opacity: 1;
+      0 0 3px rgba(255, 0, 102, 0.8),
+      0 0 6px rgba(255, 0, 102, 0.55),
+      0 0 12px rgba(255, 0, 102, 0.4),
+      0 0 20px rgba(255, 0, 102, 0.25);
+    opacity: 0.95;
   }
   50% {
     transform: rotate(-5deg);
     text-shadow:
-      0 0 2px #ff0066,
-      0 0 5px #ff0066,
-      0 0 10px #ff0066,
-      0 0 20px #ff0066,
-      0 0 40px #ff0066;
-    opacity: 0.7;
+      0 0 2px rgba(255, 0, 102, 0.7),
+      0 0 4px rgba(255, 0, 102, 0.5),
+      0 0 8px rgba(255, 0, 102, 0.35),
+      0 0 14px rgba(255, 0, 102, 0.2);
+    opacity: 0.85;
   }
 }
 
+
 /* Navigation */
+.navigation-panel {
+  background: linear-gradient(135deg, var(--glass-bg-light), rgba(139, 92, 246, 0.08));
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 20px 20px 14px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-raised);
+}
+
 .navigation {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  margin-bottom: 32px;
 }
 
 .navigation-row-1 {
@@ -812,6 +915,9 @@ body.theme-dark .trends-btn-glass {
   border-radius: 12px;
   overflow: hidden;
   box-shadow: var(--shadow-raised);
+}
+
+#performance-table {
 }
 
 .performance-table table {
@@ -948,7 +1054,7 @@ body.theme-dark .performance-table tbody tr:nth-child(even) {
 /* Responsive Design */
 @media (max-width: 768px) {
   .container {
-    padding: 16px;
+    padding: var(--layout-container-padding-mobile);
   }
   
   .page-title {
@@ -1707,15 +1813,15 @@ body.theme-dark .wide-view-toggle.active {
 /* Wide View Layout */
 body.wide-view .container {
   max-width: none;
-  padding-left: 2rem;
-  padding-right: 2rem;
+  padding-left: var(--layout-wide-padding-desktop);
+  padding-right: var(--layout-wide-padding-desktop);
 }
 
 @media (max-width: 768px) {
   body.wide-view .container {
-    max-width: 1200px;
-    padding-left: 24px;
-    padding-right: 24px;
+    max-width: var(--layout-container-max-width);
+    padding-left: var(--layout-wide-padding-mobile);
+    padding-right: var(--layout-wide-padding-mobile);
   }
 
   .wide-view-toggle {
@@ -1815,6 +1921,7 @@ body.wide-view .container {
 /* Filter and Sort Controls */
 .filter-controls {
   margin-bottom: 1rem;
+  margin-top: 24px;
 }
 
 .filter-controls-row {
@@ -2658,6 +2765,7 @@ body.theme-dark .saturn-banner {
     background: rgba(15, 23, 42, 0.5);
     border: 1px solid rgba(37, 99, 235, 0.25);
 }
+
 
 @media (prefers-color-scheme: dark) {
     body:not(.theme-light) .saturn-banner {

@@ -6,8 +6,8 @@
     <title>Rocket Pool Network Trends - Stats & Analytics</title>
 
     <!-- Reuse existing styles -->
-    <link rel="stylesheet" href="../assets/css/styles.css">
-    <link rel="stylesheet" href="assets/css/stats.css?v=2.2">
+    <link rel="stylesheet" href="../assets/css/styles.css?v=20260207143000">
+    <link rel="stylesheet" href="assets/css/stats.css?v=2.7">
 
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -33,18 +33,20 @@
                 <button class="wide-view-toggle" id="wide-view-toggle" title="Toggle wide view">
                     ⬌
                 </button>
-                <a href="../index.html" class="btn-secondary">← Back to Dashboard</a>
             </div>
         </header>
 
         <!-- Time Range Selector -->
         <div class="time-range-selector glass-panel">
-            <span class="selector-label">Time Range:</span>
-            <div class="btn-group">
-                <button class="range-btn" data-range="7">7 Days</button>
-                <button class="range-btn" data-range="30">30 Days</button>
-                <button class="range-btn" data-range="90">90 Days</button>
-                <button class="range-btn active" data-range="all">All Time</button>
+            <a href="../index.html" class="btn-secondary back-to-dashboard-btn">← Back to Dashboard</a>
+            <div class="time-range-controls">
+                <span class="selector-label">Time Range:</span>
+                <div class="btn-group">
+                    <button class="range-btn" data-range="7">7 Days</button>
+                    <button class="range-btn" data-range="30">30 Days</button>
+                    <button class="range-btn" data-range="90">90 Days</button>
+                    <button class="range-btn active" data-range="all">All Time</button>
+                </div>
             </div>
         </div>
 
