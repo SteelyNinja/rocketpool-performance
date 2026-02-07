@@ -17,8 +17,11 @@ class RocketPoolDashboard {
     this.currentSort = 'total-lost-desc';
     this.searchQuery = '';
     this.currentPage = 1;
-    this.itemsPerPage = 100;
+    this.itemsPerPage = 50;
     this.filteredNodes = [];
+    this.scanDataPromise = null;
+    this.poapDataPromise = null;
+    this.supplementaryLoadScheduled = false;
 
     // Theme management
     this.theme = 'system'; // 'system', 'light', 'dark'
@@ -99,7 +102,11 @@ class RocketPoolDashboard {
         element.textContent = value;
       } else if (key === 'href' && this.isValidUrl(value)) {
         element.setAttribute(key, value);
-      } else if (key.startsWith('data-') || ['id', 'role', 'aria-label'].includes(key)) {
+      } else if (
+        key.startsWith('data-') ||
+        key.startsWith('aria-') ||
+        ['id', 'role', 'tabindex', 'title', 'type'].includes(key)
+      ) {
         element.setAttribute(key, this.sanitizeHtml(value));
       }
     }
@@ -114,8 +121,14 @@ class RocketPoolDashboard {
 
   // Security: URL validation
   isValidUrl(url) {
+    if (typeof url !== 'string') return false;
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) return false;
+    if (trimmedUrl.startsWith('#') || trimmedUrl.startsWith('/') || trimmedUrl.startsWith('./') || trimmedUrl.startsWith('../')) {
+      return true;
+    }
     try {
-      const urlObj = new URL(url);
+      const urlObj = new URL(trimmedUrl, window.location.origin);
       return ['http:', 'https:'].includes(urlObj.protocol);
     } catch {
       return false;
@@ -159,30 +172,74 @@ class RocketPoolDashboard {
   }
 
   async loadScanData() {
-    if (this.scanData) return;
+    if (this.scanData) return this.scanData;
+    if (this.scanDataPromise) return this.scanDataPromise;
     
-    try {
-      const response = await fetch('rocketpool_scan_results.json');
-      if (response.ok) {
-        this.scanData = await response.json();
+    this.scanDataPromise = (async () => {
+      try {
+        const response = await fetch('rocketpool_scan_results.json');
+        if (response.ok) {
+          this.scanData = await response.json();
+        }
+      } catch (error) {
+        console.warn('Could not load scan data for ENS/withdrawal info:', error);
+        this.scanData = null;
+      } finally {
+        this.scanDataPromise = null;
       }
-    } catch (error) {
-      console.warn('Could not load scan data for ENS/withdrawal info:', error);
-      this.scanData = null;
-    }
+      return this.scanData;
+    })();
+
+    return this.scanDataPromise;
   }
 
   async loadPoapData() {
-    if (this.poapData) return;
+    if (this.poapData) return this.poapData;
+    if (this.poapDataPromise) return this.poapDataPromise;
 
-    try {
-      const response = await fetch('poap_results.json');
-      if (response.ok) {
-        this.poapData = await response.json();
+    this.poapDataPromise = (async () => {
+      try {
+        const response = await fetch('poap_results.json');
+        if (response.ok) {
+          this.poapData = await response.json();
+        }
+      } catch (error) {
+        console.warn('Could not load POAP data:', error);
+        this.poapData = null;
+      } finally {
+        this.poapDataPromise = null;
       }
-    } catch (error) {
-      console.warn('Could not load POAP data:', error);
-      this.poapData = null;
+      return this.poapData;
+    })();
+
+    return this.poapDataPromise;
+  }
+
+  refreshActiveViewAfterSupplementaryLoad() {
+    if (!this.reportData) return;
+    if (this.currentView === 'main') {
+      this.renderMainReport();
+      return;
+    }
+    if (this.currentView === 'node-detail' && this.currentNodeAddress) {
+      this.showNodeDetail(this.currentNodeAddress);
+    }
+  }
+
+  scheduleSupplementaryDataLoad() {
+    if (this.supplementaryLoadScheduled) return;
+    this.supplementaryLoadScheduled = true;
+
+    const load = async () => {
+      this.supplementaryLoadScheduled = false;
+      await Promise.all([this.loadScanData(), this.loadPoapData()]);
+      this.refreshActiveViewAfterSupplementaryLoad();
+    };
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      window.requestIdleCallback(load, { timeout: 4000 });
+    } else {
+      setTimeout(load, 1500);
     }
   }
 
@@ -226,13 +283,7 @@ class RocketPoolDashboard {
       this.reportData = await response.json();
       this.currentPeriod = period;
       this.currentThreshold = threshold;
-      
-      // Load scan data for ENS names and withdrawal addresses
-      await this.loadScanData();
-      
-      // Load POAP data
-      await this.loadPoapData();
-      
+
       this.updateUI();
       
       if (this.currentView === 'main') {
@@ -240,6 +291,9 @@ class RocketPoolDashboard {
       } else if (this.currentView === 'node-detail' && this.currentNodeAddress) {
         this.showNodeDetail(this.currentNodeAddress);
       }
+
+      // Load heavy supplemental datasets lazily so the main report paints faster.
+      this.scheduleSupplementaryDataLoad();
       
     } catch (error) {
       console.error('Failed to load report:', error);
@@ -267,6 +321,15 @@ class RocketPoolDashboard {
       thresholdButton.textContent = `Under ${this.currentThreshold}%`;
     }
     this.updateSelectedItem(thresholdItems, this.currentThreshold.toString());
+
+    const sortDropdown = document.getElementById('sort-dropdown');
+    const sortButton = sortDropdown.querySelector('.glass-dropdown-button span');
+    const sortItems = sortDropdown.querySelectorAll('.glass-dropdown-item');
+    this.updateSelectedItem(sortItems, this.currentSort);
+    const selectedSortItem = Array.from(sortItems).find(item => item.dataset.value === this.currentSort);
+    if (selectedSortItem) {
+      sortButton.textContent = selectedSortItem.textContent;
+    }
   }
 
   setupEventListeners() {
@@ -295,6 +358,9 @@ class RocketPoolDashboard {
         this.searchQuery = e.target.value.toLowerCase();
         this.currentPage = 1; // Reset to first page when search changes
         this.updateSearchClearVisibility();
+        if (this.searchQuery && !this.scanData) {
+          this.loadScanData().then(() => this.renderMainReport());
+        }
         this.renderMainReport();
       });
       
@@ -314,58 +380,149 @@ class RocketPoolDashboard {
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.glass-dropdown')) {
         document.querySelectorAll('.glass-dropdown').forEach(dropdown => {
-          dropdown.classList.remove('active');
+          this.closeDropdown(dropdown);
         });
       }
     });
   }
 
+  closeDropdown(dropdown) {
+    dropdown.classList.remove('active');
+    const button = dropdown.querySelector('.glass-dropdown-button');
+    if (button) {
+      button.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  openDropdown(dropdown) {
+    document.querySelectorAll('.glass-dropdown').forEach(otherDropdown => {
+      if (otherDropdown !== dropdown) {
+        this.closeDropdown(otherDropdown);
+      }
+    });
+    dropdown.classList.add('active');
+    const button = dropdown.querySelector('.glass-dropdown-button');
+    if (button) {
+      button.setAttribute('aria-expanded', 'true');
+    }
+  }
+
+  moveDropdownFocus(items, currentItem, direction) {
+    const itemList = Array.from(items);
+    const currentIndex = itemList.indexOf(currentItem);
+    if (currentIndex === -1) return;
+
+    let nextIndex = currentIndex + direction;
+    if (nextIndex < 0) nextIndex = itemList.length - 1;
+    if (nextIndex >= itemList.length) nextIndex = 0;
+    itemList[nextIndex].focus();
+  }
+
+  selectDropdownItem(dropdown, items, item, buttonText, onSelect) {
+    const value = item.dataset.value;
+    const text = item.textContent;
+
+    buttonText.textContent = text;
+    this.updateSelectedItem(items, value);
+    this.closeDropdown(dropdown);
+    onSelect(value);
+  }
+
   setupDropdownEvents(dropdownId, onSelect) {
     const dropdown = document.getElementById(dropdownId);
+    if (!dropdown) return;
     const button = dropdown.querySelector('.glass-dropdown-button');
     const buttonText = button.querySelector('span');
     const items = dropdown.querySelectorAll('.glass-dropdown-item');
+    const content = dropdown.querySelector('.glass-dropdown-content');
     
     button.addEventListener('click', (e) => {
       e.stopPropagation();
-      
-      document.querySelectorAll('.glass-dropdown').forEach(otherDropdown => {
-        if (otherDropdown !== dropdown) {
-          otherDropdown.classList.remove('active');
-        }
-      });
-      
-      dropdown.classList.toggle('active');
+      const isOpen = dropdown.classList.contains('active');
+      if (isOpen) {
+        this.closeDropdown(dropdown);
+      } else {
+        this.openDropdown(dropdown);
+      }
+    });
+
+    button.addEventListener('keydown', (e) => {
+      if (!['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) return;
+      e.preventDefault();
+      this.openDropdown(dropdown);
+      const selected = dropdown.querySelector('.glass-dropdown-item.selected');
+      (selected || items[0])?.focus();
     });
     
     items.forEach(item => {
       item.addEventListener('click', (e) => {
         e.stopPropagation();
-        
-        const value = item.dataset.value;
-        const text = item.textContent;
-        
-        buttonText.textContent = text;
-        this.updateSelectedItem(items, value);
-        dropdown.classList.remove('active');
-        onSelect(value);
+        this.selectDropdownItem(dropdown, items, item, buttonText, onSelect);
+      });
+
+      item.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          this.moveDropdownFocus(items, item, 1);
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          this.moveDropdownFocus(items, item, -1);
+          return;
+        }
+        if (e.key === 'Home') {
+          e.preventDefault();
+          items[0]?.focus();
+          return;
+        }
+        if (e.key === 'End') {
+          e.preventDefault();
+          items[items.length - 1]?.focus();
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          this.closeDropdown(dropdown);
+          button.focus();
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          this.selectDropdownItem(dropdown, items, item, buttonText, onSelect);
+        }
       });
     });
+
+    content?.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      this.closeDropdown(dropdown);
+      button.focus();
+    });
+  }
+
+  syncSwitchState(toggle, isActive) {
+    toggle.classList.toggle('active', isActive);
+    toggle.setAttribute('aria-checked', isActive ? 'true' : 'false');
+  }
+
+  bindToggleLabel(toggle) {
+    const label = toggle.closest('.toggle-container')?.querySelector('.toggle-label');
+    if (!label) return;
+    label.addEventListener('click', () => toggle.click());
   }
 
   setupToggle() {
     const toggle = document.getElementById('zero-performance-toggle');
     if (!toggle) return;
+    this.syncSwitchState(toggle, this.showZeroPerformance);
+    this.bindToggleLabel(toggle);
     
     toggle.addEventListener('click', (e) => {
       e.stopPropagation();
       this.showZeroPerformance = !this.showZeroPerformance;
-      
-      if (this.showZeroPerformance) {
-        toggle.classList.add('active');
-      } else {
-        toggle.classList.remove('active');
-      }
+      this.syncSwitchState(toggle, this.showZeroPerformance);
       
       // Re-render the current view with the new filter
       if (this.currentView === 'main') {
@@ -561,16 +718,13 @@ class RocketPoolDashboard {
   setupBackUpToggle() {
     const toggle = document.getElementById('exclude-backup-toggle');
     if (!toggle) return;
+    this.syncSwitchState(toggle, this.excludeBackUpValidators);
+    this.bindToggleLabel(toggle);
 
     toggle.addEventListener('click', (e) => {
       e.stopPropagation();
       this.excludeBackUpValidators = !this.excludeBackUpValidators;
-
-      if (this.excludeBackUpValidators) {
-        toggle.classList.add('active');
-      } else {
-        toggle.classList.remove('active');
-      }
+      this.syncSwitchState(toggle, this.excludeBackUpValidators);
 
       // Re-render the current view with the new filter
       if (this.currentView === 'main') {
@@ -582,16 +736,13 @@ class RocketPoolDashboard {
   setupFusakaToggle() {
     const toggle = document.getElementById('fusaka-deaths-toggle');
     if (!toggle) return;
+    this.syncSwitchState(toggle, this.showOnlyFusakaDeaths);
+    this.bindToggleLabel(toggle);
 
     toggle.addEventListener('click', (e) => {
       e.stopPropagation();
       this.showOnlyFusakaDeaths = !this.showOnlyFusakaDeaths;
-
-      if (this.showOnlyFusakaDeaths) {
-        toggle.classList.add('active');
-      } else {
-        toggle.classList.remove('active');
-      }
+      this.syncSwitchState(toggle, this.showOnlyFusakaDeaths);
 
       // Re-render the current view with the new filter
       if (this.currentView === 'main') {
@@ -603,16 +754,13 @@ class RocketPoolDashboard {
   setupBelow32EthToggle() {
     const toggle = document.getElementById('below-32-eth-toggle');
     if (!toggle) return;
+    this.syncSwitchState(toggle, this.showOnlyBelow32Eth);
+    this.bindToggleLabel(toggle);
 
     toggle.addEventListener('click', (e) => {
       e.stopPropagation();
       this.showOnlyBelow32Eth = !this.showOnlyBelow32Eth;
-
-      if (this.showOnlyBelow32Eth) {
-        toggle.classList.add('active');
-      } else {
-        toggle.classList.remove('active');
-      }
+      this.syncSwitchState(toggle, this.showOnlyBelow32Eth);
 
       // Re-render the current view with the new filter
       if (this.currentView === 'main') {
@@ -697,6 +845,7 @@ class RocketPoolDashboard {
     
     themeToggle.textContent = icon;
     themeToggle.title = title;
+    themeToggle.setAttribute('aria-label', title);
   }
 
   setupThemeToggle() {
@@ -784,19 +933,24 @@ class RocketPoolDashboard {
     if (isWide) {
       widthToggle.classList.add('active');
       widthToggle.title = 'Wide view enabled. Click to return to centred layout.';
+      widthToggle.setAttribute('aria-label', widthToggle.title);
     } else {
       widthToggle.classList.remove('active');
       widthToggle.title = 'Centred layout. Click to expand to full width.';
+      widthToggle.setAttribute('aria-label', widthToggle.title);
     }
   }
 
   updateSelectedItem(items, selectedValue) {
     items.forEach(item => {
-      if (item.dataset.value === selectedValue) {
+      const isSelected = item.dataset.value === selectedValue;
+      if (isSelected) {
         item.classList.add('selected');
       } else {
         item.classList.remove('selected');
       }
+      item.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+      item.setAttribute('tabindex', isSelected ? '0' : '-1');
     });
   }
 
@@ -980,7 +1134,7 @@ class RocketPoolDashboard {
     statCards.forEach(stat => {
       const card = this.createElement('div', { className: 'stat-card' });
 
-      const valueElement = this.createElement('h3');
+      const valueElement = this.createElement('p', { className: 'stat-value' });
       // Handle pre-formatted values (like ETH amounts) or numbers
       valueElement.textContent = stat.formatted
         ? stat.value
@@ -1070,21 +1224,13 @@ class RocketPoolDashboard {
       const totalLost = node.total_lost;
       const ensName = this.validateData(this.getNodeEnsName(node.node_address), 'ensName');
       const validatedAddress = this.validateData(node.node_address, 'address');
-      
-      // Create secure address link
-      const addressLink = this.createElement('a', { 
-        href: '#',
-        className: 'clickable'
-      });
-      addressLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        this.showNodeDetail(validatedAddress);
-      });
+      const canOpenNodeDetail = Boolean(validatedAddress);
       
       // Get withdrawal information
       const withdrawalInfo = this.getNodeWithdrawalInfo(validatedAddress);
       
       // Build address display safely with ENS information
+      const cellContainer = this.createElement('div', { className: 'address-cell' });
       const container = this.createElement('div', { className: 'address-container' });
       
       // Add node ENS name if exists
@@ -1094,10 +1240,21 @@ class RocketPoolDashboard {
         container.appendChild(ensSpan);
       }
       
-      // Add node address (always present and clickable)
-      const addrSpan = this.createElement('div', { className: 'node-address' });
-      addrSpan.textContent = this.truncateAddress(validatedAddress);
-      container.appendChild(addrSpan);
+      // Add node address (always present and keyboard-clickable)
+      const addrButton = this.createElement('button', {
+        className: 'node-address-btn',
+        type: 'button'
+      });
+      addrButton.textContent = canOpenNodeDetail
+        ? this.truncateAddress(validatedAddress)
+        : 'Unknown';
+      addrButton.disabled = !canOpenNodeDetail;
+      if (canOpenNodeDetail) {
+        addrButton.addEventListener('click', () => {
+          this.showNodeDetail(validatedAddress);
+        });
+      }
+      container.appendChild(addrButton);
       
       // Add withdrawal ENS names if they exist and are different from node address
       if (withdrawalInfo) {
@@ -1128,13 +1285,9 @@ class RocketPoolDashboard {
               href: `https://app.poap.xyz/scan/${withdrawalInfo.primary_withdrawal_address}`
             });
             withdrawalPoapLink.setAttribute('target', '_blank');
+            withdrawalPoapLink.setAttribute('rel', 'noopener noreferrer');
             withdrawalPoapLink.setAttribute('title', `View ${withdrawalPoapInfo.poap_count} POAP${withdrawalPoapInfo.poap_count > 1 ? 's' : ''} on POAP.xyz`);
             withdrawalPoapLink.textContent = `🏆 ${withdrawalPoapInfo.poap_count} POAP${withdrawalPoapInfo.poap_count > 1 ? 's' : ''}`;
-            
-            // Prevent POAP link from triggering address click
-            withdrawalPoapLink.addEventListener('click', (e) => {
-              e.stopPropagation();
-            });
             
             // Create a new line for POAP link
             const poapDiv = this.createElement('div', { className: 'withdrawal-poap-line' });
@@ -1161,13 +1314,9 @@ class RocketPoolDashboard {
                 href: `https://app.poap.xyz/scan/${withdrawalInfo.primary_withdrawal_address}`
               });
               primaryPoapLink.setAttribute('target', '_blank');
+              primaryPoapLink.setAttribute('rel', 'noopener noreferrer');
               primaryPoapLink.setAttribute('title', `View ${primaryPoapInfo.poap_count} POAP${primaryPoapInfo.poap_count > 1 ? 's' : ''} on POAP.xyz`);
               primaryPoapLink.textContent = `🏆 ${primaryPoapInfo.poap_count} POAP${primaryPoapInfo.poap_count > 1 ? 's' : ''}`;
-              
-              // Prevent POAP link from triggering address click
-              primaryPoapLink.addEventListener('click', (e) => {
-                e.stopPropagation();
-              });
               
               // Create a new line for POAP link
               const primaryPoapDiv = this.createElement('div', { className: 'withdrawal-poap-line' });
@@ -1190,13 +1339,9 @@ class RocketPoolDashboard {
                 href: `https://app.poap.xyz/scan/${withdrawalInfo.primary_withdrawal_address}`
               });
               primaryPoapLink.setAttribute('target', '_blank');
+              primaryPoapLink.setAttribute('rel', 'noopener noreferrer');
               primaryPoapLink.setAttribute('title', `View ${primaryPoapInfo.poap_count} POAP${primaryPoapInfo.poap_count > 1 ? 's' : ''} on POAP.xyz`);
               primaryPoapLink.textContent = `🏆 ${primaryPoapInfo.poap_count} POAP${primaryPoapInfo.poap_count > 1 ? 's' : ''}`;
-              
-              // Prevent POAP link from triggering address click
-              primaryPoapLink.addEventListener('click', (e) => {
-                e.stopPropagation();
-              });
               
               primaryDiv.appendChild(primaryPoapLink);
               container.appendChild(primaryDiv);
@@ -1216,13 +1361,9 @@ class RocketPoolDashboard {
                 href: `https://app.poap.xyz/scan/${withdrawalInfo.rpl_withdrawal_address}`
               });
               rplPoapLink.setAttribute('target', '_blank');
+              rplPoapLink.setAttribute('rel', 'noopener noreferrer');
               rplPoapLink.setAttribute('title', `View ${rplPoapInfo.poap_count} POAP${rplPoapInfo.poap_count > 1 ? 's' : ''} on POAP.xyz`);
               rplPoapLink.textContent = `🏆 ${rplPoapInfo.poap_count} POAP${rplPoapInfo.poap_count > 1 ? 's' : ''}`;
-              
-              // Prevent POAP link from triggering address click
-              rplPoapLink.addEventListener('click', (e) => {
-                e.stopPropagation();
-              });
               
               // Create a new line for POAP link
               const rplPoapDiv = this.createElement('div', { className: 'withdrawal-poap-line' });
@@ -1245,13 +1386,9 @@ class RocketPoolDashboard {
                 href: `https://app.poap.xyz/scan/${withdrawalInfo.rpl_withdrawal_address}`
               });
               rplPoapLink.setAttribute('target', '_blank');
+              rplPoapLink.setAttribute('rel', 'noopener noreferrer');
               rplPoapLink.setAttribute('title', `View ${rplPoapInfo.poap_count} POAP${rplPoapInfo.poap_count > 1 ? 's' : ''} on POAP.xyz`);
               rplPoapLink.textContent = `🏆 ${rplPoapInfo.poap_count} POAP${rplPoapInfo.poap_count > 1 ? 's' : ''}`;
-              
-              // Prevent POAP link from triggering address click
-              rplPoapLink.addEventListener('click', (e) => {
-                e.stopPropagation();
-              });
               
               rplDiv.appendChild(rplPoapLink);
               container.appendChild(rplDiv);
@@ -1268,42 +1405,40 @@ class RocketPoolDashboard {
           href: `https://app.poap.xyz/scan/${validatedAddress}`
         });
         poapLink.setAttribute('target', '_blank');
+        poapLink.setAttribute('rel', 'noopener noreferrer');
         poapLink.setAttribute('title', `View ${poapInfo.poap_count} POAP${poapInfo.poap_count > 1 ? 's' : ''} on POAP.xyz`);
         poapLink.textContent = `🏆 ${poapInfo.poap_count} POAP${poapInfo.poap_count > 1 ? 's' : ''}`;
-
-        // Prevent POAP link from triggering address click
-        poapLink.addEventListener('click', (e) => {
-          e.stopPropagation();
-        });
-
         container.appendChild(poapLink);
       }
 
       // Add note icon and title
-      const hasNote = this.notesData[validatedAddress] && this.notesData[validatedAddress].text;
-      const noteData = this.notesData[validatedAddress];
+      const hasNote = canOpenNodeDetail && this.notesData[validatedAddress] && this.notesData[validatedAddress].text;
+      const noteData = canOpenNodeDetail ? this.notesData[validatedAddress] : null;
 
-      if (hasNote || true) { // Always show icon
+      if (canOpenNodeDetail) { // Always show icon for valid node addresses
         const noteContainer = this.createElement('div', { className: 'note-container' });
 
-        const noteIcon = this.createElement('span', {
-          className: hasNote ? 'note-icon has-note' : 'note-icon no-note'
+        const noteIcon = this.createElement('button', {
+          className: hasNote ? 'note-icon has-note' : 'note-icon no-note',
+          type: 'button',
+          'aria-label': hasNote ? `View or edit note for ${validatedAddress}` : `Add note for ${validatedAddress}`
         });
         noteIcon.textContent = '📝';
         noteIcon.title = hasNote ? 'View/edit note' : 'Add note';
-        noteIcon.addEventListener('click', (e) => {
-          e.stopPropagation();
+        noteIcon.addEventListener('click', () => {
           this.openNoteModal(validatedAddress);
         });
         noteContainer.appendChild(noteIcon);
 
         // Add note title if exists
         if (hasNote && noteData.title) {
-          const noteTitle = this.createElement('span', { className: 'note-title' });
+          const noteTitle = this.createElement('button', {
+            className: 'note-title',
+            type: 'button'
+          });
           noteTitle.textContent = this.sanitizeHtml(noteData.title);
           noteTitle.title = 'Click to view/edit note';
-          noteTitle.addEventListener('click', (e) => {
-            e.stopPropagation();
+          noteTitle.addEventListener('click', () => {
             this.openNoteModal(validatedAddress);
           });
           noteContainer.appendChild(noteTitle);
@@ -1312,7 +1447,7 @@ class RocketPoolDashboard {
         container.appendChild(noteContainer);
       }
 
-      addressLink.appendChild(container);
+      cellContainer.appendChild(container);
 
       // Create performance score element
       const scoreSpan = this.createElement('span', { 
@@ -1343,7 +1478,7 @@ class RocketPoolDashboard {
 
       return [
         String(actualRank),
-        { element: addressLink },
+        { element: cellContainer },
         String(this.validateData(node.total_minipools, 'number')),
         String(this.validateData(node.active_minipools, 'number')),
         String(this.validateData(node.exited_minipools, 'number')),
@@ -1371,6 +1506,13 @@ class RocketPoolDashboard {
 
     // Add class to body for node detail styling
     document.body.classList.add('node-detail-view');
+
+    if (!this.scanData && !this.scanDataPromise) {
+      this.loadScanData().then(() => this.refreshActiveViewAfterSupplementaryLoad());
+    }
+    if (!this.poapData && !this.poapDataPromise) {
+      this.loadPoapData().then(() => this.refreshActiveViewAfterSupplementaryLoad());
+    }
 
     const nodeData = this.reportData.node_performance_scores.find(node => node.node_address === nodeAddress);
     if (!nodeData) {
@@ -1450,7 +1592,7 @@ class RocketPoolDashboard {
     basicStats.forEach(stat => {
       const card = this.createElement('div', { className: 'stat-card' });
 
-      const valueElement = this.createElement('h3');
+      const valueElement = this.createElement('p', { className: 'stat-value' });
       valueElement.textContent = stat.isBalance ? stat.value : String(this.validateData(stat.value, 'number'));
 
       const labelElement = this.createElement('p');
@@ -1616,6 +1758,7 @@ class RocketPoolDashboard {
         className: 'validator-address'
       });
       pubkeyLink.setAttribute('target', '_blank');
+      pubkeyLink.setAttribute('rel', 'noopener noreferrer');
       pubkeyLink.setAttribute('title', 'View on beaconcha.in');
       pubkeyLink.textContent = validator.pubkey;
 
@@ -2056,7 +2199,13 @@ class RocketPoolDashboard {
     html = html.replace(/\n/g, '<br>');
 
     // Links: [text](url)
-    html = html.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank">$1</a>');
+    html = html.replace(/\[(.+?)\]\((.+?)\)/g, (match, text, url) => {
+      const safeUrl = url.trim();
+      if (!this.isValidUrl(safeUrl)) {
+        return text;
+      }
+      return `<a href="${this.sanitizeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+    });
 
     return html;
   }
@@ -2227,6 +2376,7 @@ document.addEventListener('DOMContentLoaded', () => {
   'use strict';
 
   const LAUNCH_DATE = new Date('2026-02-18T00:00:00Z');
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // Rotating facts about Saturn I
   const SATURN_FACTS = [
@@ -2288,14 +2438,18 @@ document.addEventListener('DOMContentLoaded', () => {
       updateSaturnCountdown();
       setInterval(updateSaturnCountdown, 1000);
 
-      // Rotate facts every 5 seconds
-      setInterval(rotateSaturnFact, 5000);
+      if (!prefersReducedMotion) {
+        // Rotate facts every 5 seconds
+        setInterval(rotateSaturnFact, 5000);
+      }
     });
   } else {
     updateSaturnCountdown();
     setInterval(updateSaturnCountdown, 1000);
 
-    // Rotate facts every 5 seconds
-    setInterval(rotateSaturnFact, 5000);
+    if (!prefersReducedMotion) {
+      // Rotate facts every 5 seconds
+      setInterval(rotateSaturnFact, 5000);
+    }
   }
 })();

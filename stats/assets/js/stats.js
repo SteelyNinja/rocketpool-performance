@@ -3,6 +3,33 @@
  * Renders historical network trends using Chart.js
  */
 
+function resolveHeaderBannerImage() {
+    const candidates = [
+        '../assets/images/header-banner.webp?v=20260207',
+        '../reports/assets/images/header-banner.webp?v=20260207',
+        '/reports/assets/images/header-banner.webp?v=20260207'
+    ];
+
+    let index = 0;
+    const tryNext = () => {
+        if (index >= candidates.length) {
+            return;
+        }
+
+        const candidate = candidates[index];
+        index += 1;
+        const resolvedUrl = new URL(candidate, window.location.href).href;
+        const image = new Image();
+        image.onload = () => {
+            document.documentElement.style.setProperty('--stats-header-banner-image', `url("${resolvedUrl}")`);
+        };
+        image.onerror = tryNext;
+        image.src = resolvedUrl;
+    };
+
+    tryNext();
+}
+
 /**
  * Theme Manager
  * Handles light/dark/system theme switching with localStorage persistence
@@ -90,6 +117,7 @@ class ThemeManager {
 
         themeToggle.textContent = icon;
         themeToggle.title = title;
+        themeToggle.setAttribute('aria-label', title);
     }
 
     setupThemeToggle() {
@@ -181,9 +209,11 @@ class WidthManager {
         if (isWide) {
             widthToggle.classList.add('active');
             widthToggle.title = 'Wide view enabled. Click to return to centred layout.';
+            widthToggle.setAttribute('aria-label', widthToggle.title);
         } else {
             widthToggle.classList.remove('active');
             widthToggle.title = 'Centred layout. Click to expand to full width.';
+            widthToggle.setAttribute('aria-label', widthToggle.title);
         }
     }
 }
@@ -262,10 +292,15 @@ class StatsViewer {
     setupTimeRangeControls() {
         const buttons = document.querySelectorAll('.range-btn');
         buttons.forEach(btn => {
+            btn.setAttribute('aria-pressed', btn.classList.contains('active') ? 'true' : 'false');
+        });
+
+        buttons.forEach(btn => {
             btn.addEventListener('click', (e) => {
                 // Update active state
                 buttons.forEach(b => b.classList.remove('active'));
                 e.target.classList.add('active');
+                buttons.forEach(b => b.setAttribute('aria-pressed', b.classList.contains('active') ? 'true' : 'false'));
 
                 // Update range and re-render
                 this.timeRange = e.target.dataset.range;
@@ -901,6 +936,8 @@ class StatsViewer {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+    resolveHeaderBannerImage();
+
     // Initialize theme manager first
     const themeManager = new ThemeManager();
     const widthManager = new WidthManager();

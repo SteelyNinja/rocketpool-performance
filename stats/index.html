@@ -6,11 +6,28 @@
     <title>Rocket Pool Network Trends - Stats & Analytics</title>
 
     <!-- Reuse existing styles -->
-    <link rel="stylesheet" href="../assets/css/styles.css?v=20260207143000">
-    <link rel="stylesheet" href="assets/css/stats.css?v=2.17">
-
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <link id="shared-stylesheet" rel="stylesheet" href="../assets/css/styles.css?v=20260207214500">
+    <script>
+      (function () {
+        const link = document.getElementById('shared-stylesheet');
+        if (!link) return;
+        const candidates = [
+          '../assets/css/styles.css?v=20260207214500',
+          '../reports/assets/css/styles.css?v=20260207214500'
+        ];
+        let index = 0;
+        link.addEventListener('error', function () {
+          index += 1;
+          if (index < candidates.length) {
+            link.href = candidates[index];
+          }
+        });
+      })();
+    </script>
+    <link rel="stylesheet" href="assets/css/stats.css?v=2.18">
 
     <!-- Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
@@ -25,12 +42,26 @@
                     Rocket Pool Network Trends
                 </h1>
                 <p class="page-subtitle">Historical performance analytics and network statistics</p>
+                <div class="header-meta-pills">
+                    <div class="meta-pill">
+                        <span class="meta-pill-label">Updated</span>
+                        <span class="meta-pill-value" id="meta-update-value">Daily 01:00 UTC</span>
+                    </div>
+                    <div class="meta-pill">
+                        <span class="meta-pill-label">Snapshots</span>
+                        <span class="meta-pill-value" id="meta-snapshots-value">--</span>
+                    </div>
+                    <div class="meta-pill">
+                        <span class="meta-pill-label">Range</span>
+                        <span class="meta-pill-value" id="meta-range-value">All Time</span>
+                    </div>
+                </div>
             </div>
             <div class="header-controls">
-                <button class="theme-toggle" id="theme-toggle" title="Toggle theme: System → Light → Dark">
+                <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Theme mode" title="Toggle theme: System → Light → Dark">
                     🖥️
                 </button>
-                <button class="wide-view-toggle" id="wide-view-toggle" title="Toggle wide view">
+                <button class="wide-view-toggle" id="wide-view-toggle" type="button" aria-label="Toggle wide layout" title="Toggle wide view">
                     ⬌
                 </button>
             </div>
@@ -42,10 +73,10 @@
             <div class="time-range-controls">
                 <span class="selector-label">Time Range:</span>
                 <div class="btn-group">
-                    <button class="range-btn" data-range="7">7 Days</button>
-                    <button class="range-btn" data-range="30">30 Days</button>
-                    <button class="range-btn" data-range="90">90 Days</button>
-                    <button class="range-btn active" data-range="all">All Time</button>
+                    <button class="range-btn" type="button" data-range="7">7 Days</button>
+                    <button class="range-btn" type="button" data-range="30">30 Days</button>
+                    <button class="range-btn" type="button" data-range="90">90 Days</button>
+                    <button class="range-btn active" type="button" data-range="all">All Time</button>
                 </div>
             </div>
         </div>
@@ -185,7 +216,8 @@
         </footer>
     </div>
 
-    <!-- Stats Viewer JS -->
-    <script src="assets/js/stats.js?v=2.15"></script>
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+    <script src="assets/js/stats.js?v=2.18" defer></script>
 </body>
 </html>

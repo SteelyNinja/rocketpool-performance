@@ -1,6 +1,10 @@
 /* Stats Page Specific Styles */
 /* .container and wide-view spacing come from ../assets/css/styles.css layout tokens */
 
+:root {
+    --stats-header-banner-image: none;
+}
+
 /* Header */
 .header {
     position: relative;
@@ -29,7 +33,7 @@
             rgba(59, 130, 246, 0.18) 34%,
             rgba(59, 130, 246, 0.02) 72%
         ),
-        url("../../../assets/images/header-banner.webp?v=20260207");
+        var(--stats-header-banner-image);
     background-size: cover;
     background-position: left center;
     opacity: 0.32;
@@ -221,6 +225,12 @@
     background: var(--primary-500);
     border-color: var(--primary-500);
     color: white;
+}
+
+:where(.range-btn, .theme-toggle, .wide-view-toggle, .btn-secondary):focus-visible {
+    outline: 2px solid var(--primary-500);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
 }
 
 /* Summary Cards */
@@ -470,7 +480,7 @@
                 rgba(10, 42, 84, 0.48) 68%,
                 rgba(15, 67, 129, 0.30) 100%
             ),
-            url("../../../assets/images/header-banner.webp?v=20260207");
+            var(--stats-header-banner-image);
         opacity: 0.34;
         filter: saturate(0.95) brightness(0.95);
     }
@@ -532,4 +542,12 @@
 .glass-panel:hover {
     border-color: var(--glass-border-hover);
     box-shadow: var(--shadow-elevated);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
