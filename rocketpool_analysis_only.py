@@ -707,7 +707,7 @@ def run_analysis(period='7day', threshold=80, output_dir='reports'):
     all_validator_statuses, _ = get_all_validator_statuses(client, validators)
     
     # Filter for active validators only
-    active_validators = get_active_validators(client, validators)
+    active_validators = get_active_validators(client, validators, all_validator_statuses)
     
     # Query attestation performance
     performance_data, start_epoch, end_epoch = query_attestation_performance(client, active_validators, latest_epoch, epochs_to_analyze)
@@ -765,8 +765,14 @@ def run_analysis(period='7day', threshold=80, output_dir='reports'):
     print(f"Nodes below threshold: {len(node_scores)}")
     
     if node_scores:
-        avg_performance = sum(node['performance_score'] for node in node_scores if isinstance(node['performance_score'], (int, float))) / len(node_scores)
-        print(f"Average performance score: {avg_performance:.2f}%")
+        numeric_scores = [
+            node['performance_score']
+            for node in node_scores
+            if isinstance(node['performance_score'], (int, float))
+        ]
+        if numeric_scores:
+            avg_performance = sum(numeric_scores) / len(numeric_scores)
+            print(f"Average performance score: {avg_performance:.2f}%")
     
     print(f"\nAnalysis completed successfully!")
     print(f"Output: {filename}")

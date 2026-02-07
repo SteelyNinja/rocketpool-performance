@@ -1,3 +1,8 @@
 web3>=6.0.0
 multicall>=0.7.0
 tqdm>=4.64.0
+clickhouse-connect>=0.8.0
+fastapi>=0.110.0
+pydantic>=2.6.0
+uvicorn>=0.27.0
+requests>=2.31.0

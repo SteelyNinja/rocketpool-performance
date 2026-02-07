@@ -957,7 +957,10 @@ class RocketPoolDashboard {
   updateUI() {
     if (!this.reportData) return;
     
-    document.title = `Rocket Pool Performance Report - ${this.formatPeriod(this.currentPeriod)} (${this.currentThreshold}%)`;
+    const thresholdLabel = this.currentThreshold === 'all'
+      ? 'All Nodes'
+      : `Under ${this.currentThreshold}%`;
+    document.title = `Rocket Pool Performance Report - ${this.formatPeriod(this.currentPeriod)} (${thresholdLabel})`;
     
     const headerInfo = document.getElementById('header-info');
     if (headerInfo) {
