@@ -467,11 +467,11 @@
 
 /* Dark Mode Support */
 @media (prefers-color-scheme: dark) {
-    body:not(.theme-light) .header {
+    body:not(.theme-light):not(.theme-dark) .header {
         background: linear-gradient(135deg, rgba(7, 21, 42, 0.88), rgba(9, 39, 77, 0.78));
     }
 
-    body:not(.theme-light) .header::before {
+    body:not(.theme-light):not(.theme-dark) .header::before {
         background-image:
             linear-gradient(
                 90deg,
@@ -485,7 +485,7 @@
         filter: saturate(0.95) brightness(0.95);
     }
 
-    body:not(.theme-light) .header::after {
+    body:not(.theme-light):not(.theme-dark) .header::after {
         inset: -35% -14% -35% -14%;
         background:
             linear-gradient(
@@ -497,35 +497,95 @@
             radial-gradient(circle at 78% 50%, rgba(96, 165, 250, 0.16), transparent 72%);
     }
 
-    body:not(.theme-light) .meta-pill {
+    body:not(.theme-light):not(.theme-dark) .meta-pill {
         background: rgba(15, 23, 42, 0.58);
         border-color: rgba(148, 163, 184, 0.25);
     }
 
-    body:not(.theme-light) .meta-pill-label {
+    body:not(.theme-light):not(.theme-dark) .meta-pill-label {
         color: var(--neutral-400);
     }
 
-    body:not(.theme-light) .meta-pill-value {
+    body:not(.theme-light):not(.theme-dark) .meta-pill-value {
         color: var(--neutral-200);
     }
 
-    body:not(.theme-light) .page-title,
-    body:not(.theme-light) .card-value,
-    body:not(.theme-light) .chart-title {
+    body:not(.theme-light):not(.theme-dark) .page-title,
+    body:not(.theme-light):not(.theme-dark) .card-value,
+    body:not(.theme-light):not(.theme-dark) .chart-title {
         color: var(--neutral-100);
     }
 
-    body:not(.theme-light) .page-subtitle,
-    body:not(.theme-light) .card-title,
-    body:not(.theme-light) .chart-subtitle {
+    body:not(.theme-light):not(.theme-dark) .page-subtitle,
+    body:not(.theme-light):not(.theme-dark) .card-title,
+    body:not(.theme-light):not(.theme-dark) .chart-subtitle {
         color: var(--neutral-400);
     }
 
-    body:not(.theme-light) .selector-label,
-    body:not(.theme-light) .range-btn {
+    body:not(.theme-light):not(.theme-dark) .selector-label,
+    body:not(.theme-light):not(.theme-dark) .range-btn {
         color: var(--neutral-300);
     }
+}
+
+body.theme-dark .header {
+    background: linear-gradient(135deg, rgba(7, 21, 42, 0.88), rgba(9, 39, 77, 0.78));
+}
+
+body.theme-dark .header::before {
+    background-image:
+        linear-gradient(
+            90deg,
+            rgba(4, 14, 30, 0.70) 0%,
+            rgba(7, 27, 53, 0.60) 34%,
+            rgba(10, 42, 84, 0.48) 68%,
+            rgba(15, 67, 129, 0.30) 100%
+        ),
+        var(--stats-header-banner-image);
+    opacity: 0.34;
+    filter: saturate(0.95) brightness(0.95);
+}
+
+body.theme-dark .header::after {
+    inset: -35% -14% -35% -14%;
+    background:
+        linear-gradient(
+            92deg,
+            rgba(59, 130, 246, 0) 36%,
+            rgba(59, 130, 246, 0.08) 72%,
+            rgba(59, 130, 246, 0.16) 100%
+        ),
+        radial-gradient(circle at 78% 50%, rgba(96, 165, 250, 0.16), transparent 72%);
+}
+
+body.theme-dark .meta-pill {
+    background: rgba(15, 23, 42, 0.58);
+    border-color: rgba(148, 163, 184, 0.25);
+}
+
+body.theme-dark .meta-pill-label {
+    color: var(--neutral-400);
+}
+
+body.theme-dark .meta-pill-value {
+    color: var(--neutral-200);
+}
+
+body.theme-dark .page-title,
+body.theme-dark .card-value,
+body.theme-dark .chart-title {
+    color: var(--neutral-100);
+}
+
+body.theme-dark .page-subtitle,
+body.theme-dark .card-title,
+body.theme-dark .chart-subtitle {
+    color: var(--neutral-400);
+}
+
+body.theme-dark .selector-label,
+body.theme-dark .range-btn {
+    color: var(--neutral-300);
 }
 
 /* Glass Panel Base Style (if not in main styles.css) */
