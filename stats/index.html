@@ -9,14 +9,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-    <link id="shared-stylesheet" rel="stylesheet" href="../assets/css/styles.css?v=20260207231947">
+    <link id="shared-stylesheet" rel="stylesheet" href="../assets/css/styles.css?v=20260208104200">
     <script>
       (function () {
         const link = document.getElementById('shared-stylesheet');
         if (!link) return;
         const candidates = [
-          '../assets/css/styles.css?v=20260207231947',
-          '../reports/assets/css/styles.css?v=20260207231947'
+          '../assets/css/styles.css?v=20260208104200',
+          '../reports/assets/css/styles.css?v=20260208104200'
         ];
         let index = 0;
         link.addEventListener('error', function () {
@@ -42,20 +42,6 @@
                     Rocket Pool Network Trends
                 </h1>
                 <p class="page-subtitle">Historical performance analytics and network statistics</p>
-                <div class="header-meta-pills">
-                    <div class="meta-pill">
-                        <span class="meta-pill-label">Updated</span>
-                        <span class="meta-pill-value" id="meta-update-value">Daily 01:00 UTC</span>
-                    </div>
-                    <div class="meta-pill">
-                        <span class="meta-pill-label">Snapshots</span>
-                        <span class="meta-pill-value" id="meta-snapshots-value">--</span>
-                    </div>
-                    <div class="meta-pill">
-                        <span class="meta-pill-label">Range</span>
-                        <span class="meta-pill-value" id="meta-range-value">All Time</span>
-                    </div>
-                </div>
             </div>
             <div class="header-controls">
                 <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Theme mode" title="Toggle theme: System → Light → Dark">
@@ -218,6 +204,6 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
-    <script src="assets/js/stats.js?v=2.18" defer></script>
+    <script src="assets/js/stats.js?v=2.19" defer></script>
 </body>
 </html>

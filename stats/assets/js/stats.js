@@ -230,7 +230,6 @@ class StatsViewer {
         try {
             this.showLoading();
             await this.loadStatsData();
-            this.updateHeaderMeta();
             this.setupTimeRangeControls();
             this.updateSummaryCards();
             this.renderAllCharts();
@@ -305,73 +304,10 @@ class StatsViewer {
                 // Update range and re-render
                 this.timeRange = e.target.dataset.range;
                 this.filteredData = this.filterDataByTimeRange(this.timeRange);
-                this.updateHeaderMeta();
                 this.updateSummaryCards();
                 this.renderAllCharts();
             });
         });
-    }
-
-    getTimeRangeLabel(range) {
-        if (range === 'all') {
-            return 'All Time';
-        }
-        return `${range} Days`;
-    }
-
-    getLatestSnapshotDate() {
-        if (!this.statsData?.snapshots?.length) {
-            return null;
-        }
-        return this.statsData.snapshots.reduce((latest, snapshot) => {
-            if (!snapshot?.date) {
-                return latest;
-            }
-            if (!latest) {
-                return snapshot.date;
-            }
-            return new Date(snapshot.date) > new Date(latest) ? snapshot.date : latest;
-        }, null);
-    }
-
-    formatLongDate(dateString) {
-        const date = new Date(dateString);
-        if (Number.isNaN(date.getTime())) {
-            return 'Unknown';
-        }
-        return date.toLocaleDateString('en-GB', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric'
-        });
-    }
-
-    updateHeaderMeta() {
-        const updateEl = document.getElementById('meta-update-value');
-        const snapshotsEl = document.getElementById('meta-snapshots-value');
-        const rangeEl = document.getElementById('meta-range-value');
-
-        if (!updateEl && !snapshotsEl && !rangeEl) {
-            return;
-        }
-
-        const latestSnapshotDate = this.getLatestSnapshotDate();
-        if (updateEl) {
-            updateEl.textContent = latestSnapshotDate
-                ? `${this.formatLongDate(latestSnapshotDate)} @ 01:00 UTC`
-                : 'Daily 01:00 UTC';
-        }
-
-        if (snapshotsEl) {
-            const totalSnapshots = this.statsData?.snapshots?.length || 0;
-            snapshotsEl.textContent = `${totalSnapshots.toLocaleString()} total`;
-        }
-
-        if (rangeEl) {
-            const rangeLabel = this.getTimeRangeLabel(this.timeRange);
-            const visiblePoints = this.filteredData?.length || 0;
-            rangeEl.textContent = `${rangeLabel} (${visiblePoints})`;
-        }
     }
 
     updateSummaryCards() {
