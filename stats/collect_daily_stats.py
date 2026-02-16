@@ -291,9 +291,20 @@ def calculate_snapshot_metrics(performance_data, node_assignments, validator_sta
     """Calculate all metrics for daily snapshot"""
     log("Calculating snapshot metrics...")
 
-    # Load Fusaka deaths for tracking (count by node addresses)
+    # Load Fusaka deaths - only count nodes that still have active validators
     fusaka_deaths = load_fusaka_deaths()
-    fusaka_death_count = len(fusaka_deaths)
+    fusaka_node_addresses = {v['node_address'].lower() for v in fusaka_deaths}
+
+    # Build set of node addresses that still have active validators
+    nodes_with_active = set()
+    for val_id, node_addr in node_assignments.items():
+        status = validator_statuses.get(val_id)
+        if status in ('active_ongoing', 'active_exiting', 'active_slashed'):
+            nodes_with_active.add(node_addr.lower())
+
+    fusaka_death_count = sum(
+        1 for addr in fusaka_node_addresses if addr in nodes_with_active
+    )
 
     # Active validator statuses
     active_statuses = ('active_ongoing', 'active_exiting', 'active_slashed')
@@ -602,6 +613,29 @@ def collect_snapshot_for_date(client, target_date, scan_data, validators, val_id
         validator_statuses,
         end_epoch
     )
+
+    # Count Use Latest Delegate flags for active minipools only
+    active_statuses = ('active_ongoing', 'active_exiting', 'active_slashed')
+    uld_true = 0
+    uld_false = 0
+    for node in scan_data:
+        pubkeys = node.get('minipool_pubkeys', [])
+        flags = node.get('minipool_use_latest_delegate', [])
+        for i, flag in enumerate(flags):
+            if flag is None or i >= len(pubkeys):
+                continue
+            pubkey = pubkeys[i]
+            val_id = val_id_map.get(pubkey)
+            status = validator_statuses.get(val_id) if val_id else None
+            if status not in active_statuses:
+                continue
+            if flag is True:
+                uld_true += 1
+            else:
+                uld_false += 1
+    metrics['uld_true'] = uld_true
+    metrics['uld_false'] = uld_false
+    log(f"  ULD flags (active only): {uld_true} using latest delegate, {uld_false} pinned")
 
     # Create snapshot
     snapshot = {

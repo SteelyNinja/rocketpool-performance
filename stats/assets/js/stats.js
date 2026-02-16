@@ -330,6 +330,15 @@ class StatsViewer {
 
         // Average Performance Score
         this.updateCard('performance', latest.avg_performance_score.toFixed(2) + '%', previous?.avg_performance_score, true);
+
+        // Use Latest Delegate
+        if (latest.uld_true !== undefined) {
+            this.updateCard('uld', latest.uld_true, previous?.uld_true, true);
+            const total = (latest.uld_true || 0) + (latest.uld_false || 0);
+            const pct = total > 0 ? ((latest.uld_true / total) * 100).toFixed(1) + '%' : '--';
+            const uldValueEl = document.getElementById('uld-value');
+            if (uldValueEl) uldValueEl.textContent = `${latest.uld_true} (${pct})`;
+        }
     }
 
     updateCard(prefix, value, previousValue, higherIsBetter) {
@@ -395,6 +404,7 @@ class StatsViewer {
         this.renderZeroPerformance();
         this.renderPerformanceBandDistribution();
         this.renderUndercollateralised();
+        this.renderUldTrend();
     }
 
     renderUnderperformingTrend() {
@@ -779,6 +789,90 @@ class StatsViewer {
                 }]
             },
             options: this.getChartOptions('Number of Validators')
+        });
+    }
+
+    renderUldTrend() {
+        const ctx = document.getElementById('uldChart');
+        if (!ctx) return;
+        if (this.charts.uld) {
+            this.charts.uld.destroy();
+        }
+
+        const data = this.filteredData.slice().reverse().filter(s => s.uld_true !== undefined);
+        // Only render if we have ULD data
+        if (data.length === 0) return;
+
+        const theme = this.getChartTheme();
+        const trueLineColor = theme.isDarkMode ? '#4ade80' : '#22c55e';
+        const trueFillColor = theme.isDarkMode ? 'rgba(74, 222, 128, 0.14)' : 'rgba(34, 197, 94, 0.1)';
+        const falseLineColor = theme.isDarkMode ? '#94a3b8' : '#64748b';
+        const falseFillColor = theme.isDarkMode ? 'rgba(148, 163, 184, 0.14)' : 'rgba(100, 116, 139, 0.1)';
+        const baseOptions = this.getChartOptions('Number of Minipools');
+
+        this.charts.uld = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.map(s => this.formatDate(s.date)),
+                datasets: [
+                    {
+                        label: 'Using Latest Delegate',
+                        data: data.map(s => s.uld_true),
+                        borderColor: trueLineColor,
+                        backgroundColor: trueFillColor,
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: data.length === 1 ? 5 : 2,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Using Pinned Delegate',
+                        data: data.map(s => s.uld_false),
+                        borderColor: falseLineColor,
+                        backgroundColor: falseFillColor,
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: data.length === 1 ? 5 : 2,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Total Active Validators',
+                        data: data.map(s => (s.uld_true || 0) + (s.uld_false || 0)),
+                        borderColor: theme.isDarkMode ? '#60a5fa' : '#2563eb',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        borderDash: [5, 3],
+                        tension: 0.4,
+                        fill: false,
+                        pointRadius: data.length === 1 ? 5 : 0,
+                        yAxisID: 'y'
+                    }
+                ]
+            },
+            options: {
+                ...baseOptions,
+                plugins: {
+                    ...baseOptions.plugins,
+                    tooltip: {
+                        ...baseOptions.plugins.tooltip,
+                        callbacks: {
+                            footer: (tooltipItems) => {
+                                if (!tooltipItems || tooltipItems.length === 0) {
+                                    return '';
+                                }
+
+                                const pointIndex = tooltipItems[0].dataIndex;
+                                const snapshot = data[pointIndex];
+                                const total = (snapshot.uld_true || 0) + (snapshot.uld_false || 0);
+                                const pct = total > 0 ? ((snapshot.uld_true / total) * 100).toFixed(1) : '0.0';
+                                return `% Using Latest Delegate: ${pct}%`;
+                            }
+                        }
+                    }
+                }
+            }
         });
     }
 

@@ -9,14 +9,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-    <link id="shared-stylesheet" rel="stylesheet" href="../assets/css/styles.css?v=20260208104200">
+    <link id="shared-stylesheet" rel="stylesheet" href="../assets/css/styles.css?v=20260214212731">
     <script>
       (function () {
         const link = document.getElementById('shared-stylesheet');
         if (!link) return;
         const candidates = [
-          '../assets/css/styles.css?v=20260208104200',
-          '../reports/assets/css/styles.css?v=20260208104200'
+          '../assets/css/styles.css?v=20260214212731',
+          '../reports/assets/css/styles.css?v=20260214212731'
         ];
         let index = 0;
         link.addEventListener('error', function () {
@@ -27,7 +27,7 @@
         });
       })();
     </script>
-    <link rel="stylesheet" href="assets/css/stats.css?v=2.19">
+    <link rel="stylesheet" href="assets/css/stats.css?v=2.22">
 
     <!-- Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
@@ -113,6 +113,15 @@
                 <div class="card-value" id="performance-value">--</div>
                 <div class="card-change" id="performance-change">--</div>
             </div>
+
+            <div class="summary-card glass-panel">
+                <div class="card-header">
+                    <span class="card-icon">🔄</span>
+                    <span class="card-title">Use Latest Delegate</span>
+                </div>
+                <div class="card-value" id="uld-value">--</div>
+                <div class="card-change" id="uld-change">--</div>
+            </div>
         </div>
 
         <!-- Charts Grid -->
@@ -182,6 +191,17 @@
                     <canvas id="undercollateralisedChart"></canvas>
                 </div>
             </div>
+
+            <!-- Use Latest Delegate Trend -->
+            <div class="chart-container glass-panel">
+                <div class="chart-header">
+                    <h2 class="chart-title">Use Latest Delegate Adoption</h2>
+                    <p class="chart-subtitle">Minipools using latest delegate vs pinned delegate</p>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="uldChart"></canvas>
+                </div>
+            </div>
         </div>
 
         <!-- Loading Indicator -->
@@ -204,6 +224,6 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
-    <script src="assets/js/stats.js?v=2.19" defer></script>
+    <script src="assets/js/stats.js?v=2.25" defer></script>
 </body>
 </html>
