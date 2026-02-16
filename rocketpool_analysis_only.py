@@ -34,6 +34,12 @@ FUSAKA_EPOCH = 411392
 FUSAKA_DATETIME = "2025-12-03T21:49:11"
 FUSAKA_DEATHS_FILE = "fusaka_deaths.json"
 
+# Nimbus fork constants (Merkle tree cache corruption bug, 2026-02-08)
+NIMBUS_FORK_EPOCH = 426274
+NIMBUS_FORK_DATETIME = "2026-02-08T01:13:59"
+NIMBUS_FORK_DATETIME_EARLY = "2026-02-08T01:07:35"  # Epoch 426273 (3 nodes)
+NIMBUS_FORK_DEATHS_FILE = "nimbus_fork_deaths.json"
+
 def connect_to_clickhouse():
     """Connect to ClickHouse database."""
     try:
@@ -65,6 +71,26 @@ def save_fusaka_deaths(fusaka_data):
             json.dump(fusaka_data, f, indent=2)
     except IOError as e:
         print(f"Warning: Could not save {FUSAKA_DEATHS_FILE}: {e}")
+
+def load_nimbus_fork_deaths():
+    """Load persistent Nimbus fork deaths data."""
+    if not os.path.exists(NIMBUS_FORK_DEATHS_FILE):
+        return {'validators': []}
+
+    try:
+        with open(NIMBUS_FORK_DEATHS_FILE, 'r') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError) as e:
+        print(f"Warning: Could not load {NIMBUS_FORK_DEATHS_FILE}: {e}")
+        return {'validators': []}
+
+def save_nimbus_fork_deaths(nimbus_data):
+    """Save updated Nimbus fork deaths data."""
+    try:
+        with open(NIMBUS_FORK_DEATHS_FILE, 'w') as f:
+            json.dump(nimbus_data, f, indent=2)
+    except IOError as e:
+        print(f"Warning: Could not save {NIMBUS_FORK_DEATHS_FILE}: {e}")
 
 def get_all_validator_statuses(client, validators):
     """Get status information for all validators."""
@@ -187,25 +213,44 @@ def get_database_retention_info(client):
 def find_last_attestation_extended(client, val_id_list, oldest_epoch, search_end_epoch, newest_epoch):
     """Extended search to find the actual last attestation across the full database range."""
     try:
+        # val_id_list is passed as a comma-delimited string from callers.
+        val_ids = [int(v.strip()) for v in str(val_id_list).split(',') if v.strip()]
+        if not val_ids:
+            return {}
+
+        epochs_per_day = 225
+        total_epochs = newest_epoch - oldest_epoch
+        total_days = int(total_epochs / epochs_per_day)
+
+        # Pre-fill all requested validators as older-than-retention.
+        # Query results overwrite this for validators that have historical attestations.
+        extended_attestations = {
+            val_id: {
+                'epoch': None,
+                'timestamp': None,
+                'datetime': None,
+                'age_epochs': None,
+                'status': f'older_than_{total_days}_days'
+            }
+            for val_id in val_ids
+        }
+
+        val_id_csv = ','.join(str(v) for v in val_ids)
         extended_query = f"""
         SELECT 
             val_id,
-            MAX(CASE WHEN att_happened = 1 THEN epoch ELSE NULL END) as last_attestation_epoch,
-            MIN(epoch) as first_epoch_in_db,
-            MAX(epoch) as last_epoch_in_db
+            MAX(epoch) as last_attestation_epoch
         FROM validators_summary 
         PREWHERE epoch >= {oldest_epoch} AND epoch <= {search_end_epoch}
-        WHERE val_id IN ({val_id_list}) 
-        AND epoch >= {oldest_epoch} 
-        AND epoch <= {search_end_epoch}
+        WHERE val_id IN ({val_id_csv}) 
+        AND att_happened = 1
         GROUP BY val_id
         """
         
         result = client.query(extended_query)
-        extended_attestations = {}
         
         for row in result.result_rows:
-            val_id, last_attestation_epoch, first_epoch_in_db, last_epoch_in_db = row
+            val_id, last_attestation_epoch = row
             
             if last_attestation_epoch is not None:
                 # Genesis timestamp: Dec 1, 2020 12:00:23 UTC
@@ -218,19 +263,6 @@ def find_last_attestation_extended(client, val_id_list, oldest_epoch, search_end
                     'datetime': datetime.fromtimestamp(estimated_timestamp).isoformat(),
                     'age_epochs': newest_epoch - last_attestation_epoch,
                     'status': 'found_extended'
-                }
-            else:
-                # No attestation found in entire database
-                epochs_per_day = 225
-                total_epochs = newest_epoch - oldest_epoch
-                total_days = int(total_epochs / epochs_per_day)
-                
-                extended_attestations[val_id] = {
-                    'epoch': None,
-                    'timestamp': None,
-                    'datetime': None,
-                    'age_epochs': None,
-                    'status': f'older_than_{total_days}_days'
                 }
         
         return extended_attestations
@@ -277,7 +309,7 @@ def query_attestation_performance(client, validators, latest_epoch, epochs_to_an
                 SUM(ifNull(att_penalty, 0)) as total_penalties,
                 COUNT(*) as total_epochs,
                 SUM(att_happened = 1) as successful_attestations,
-                MAXIf(epoch, att_happened = 1) as last_attestation_epoch,
+                NULLIF(MAXIf(epoch, att_happened = 1), 0) as last_attestation_epoch,
                 MAXIf(val_balance, epoch = {end_epoch}) as val_balance,
                 MAXIf(val_effective_balance, epoch = {end_epoch}) as val_effective_balance
             FROM validators_summary
@@ -416,7 +448,7 @@ def calculate_uld_status(node_address, scan_data):
     else:
         return {'status': 'partial', 'count': f"{true_count}/{total}"}
 
-def calculate_node_performance_scores(performance_data, all_rp_validators, threshold_filter=None, scan_data=None, fusaka_deaths=None):
+def calculate_node_performance_scores(performance_data, all_rp_validators, threshold_filter=None, scan_data=None, fusaka_deaths=None, nimbus_fork_deaths=None):
     """Calculate performance scores grouped by node with optional threshold filtering."""
     print("Calculating node performance scores...")
 
@@ -427,6 +459,13 @@ def calculate_node_performance_scores(performance_data, all_rp_validators, thres
     # Create a lookup dict for quick access
     fusaka_lookup = {v['node_address']: v for v in fusaka_deaths.get('validators', [])}
     validators_to_remove = []  # Track validators that came back online
+
+    # Initialise Nimbus fork deaths tracking
+    if nimbus_fork_deaths is None:
+        nimbus_fork_deaths = {'validators': []}
+
+    nimbus_lookup = {v['node_address']: v for v in nimbus_fork_deaths.get('validators', [])}
+    nimbus_validators_to_remove = []  # Track Nimbus validators that came back online
     
     # First, get minipool counts per node from all Rocket Pool data
     node_minipool_counts = defaultdict(lambda: {'total': 0, 'active': 0, 'exited': 0})
@@ -555,6 +594,10 @@ def calculate_node_performance_scores(performance_data, all_rp_validators, thres
                 # Node is back online! Remove from Fusaka deaths list
                 validators_to_remove.append(node_addr)
                 print(f"  Node {node_addr} recovered from Fusaka death (last attestation: epoch {node_last_attestation['epoch']})")
+            elif active_validators == 0 and minipool_counts['total'] > 0:
+                # Node has fully exited - no longer a Fusaka death, just exited
+                validators_to_remove.append(node_addr)
+                print(f"  Node {node_addr} exited - removing from Fusaka deaths tracking")
             else:
                 # Still offline - override with Fusaka death data
                 # This ensures we maintain the classification even after the 120-day window
@@ -566,6 +609,30 @@ def calculate_node_performance_scores(performance_data, all_rp_validators, thres
                     'datetime': FUSAKA_DATETIME,
                     'age_epochs': node_last_attestation.get('age_epochs'),  # Keep current age
                     'status': 'fusaka_death'
+                }
+
+        # Check for Nimbus fork deaths - validators that died at the Nimbus fork
+        if node_addr in nimbus_lookup:
+            nimbus_entry = nimbus_lookup[node_addr]
+            entry_epoch = nimbus_entry.get('nimbus_fork_epoch', NIMBUS_FORK_EPOCH)
+            if (node_last_attestation.get('status') in ['found', 'found_extended'] and
+                node_last_attestation.get('epoch') is not None and
+                node_last_attestation['epoch'] > entry_epoch):
+                nimbus_validators_to_remove.append(node_addr)
+                print(f"  Node {node_addr} recovered from Nimbus fork death (last attestation: epoch {node_last_attestation['epoch']})")
+            elif active_validators == 0 and minipool_counts['total'] > 0:
+                nimbus_validators_to_remove.append(node_addr)
+                print(f"  Node {node_addr} exited - removing from Nimbus fork deaths tracking")
+            else:
+                genesis_timestamp = 1606824023
+                nimbus_timestamp = genesis_timestamp + (entry_epoch * 32 * 12)
+                entry_datetime = nimbus_entry.get('nimbus_fork_datetime', NIMBUS_FORK_DATETIME)
+                node_last_attestation = {
+                    'epoch': entry_epoch,
+                    'timestamp': nimbus_timestamp,
+                    'datetime': entry_datetime,
+                    'age_epochs': node_last_attestation.get('age_epochs'),
+                    'status': 'nimbus_fork_death'
                 }
 
         # Determine if validator is back up (has made attestations in the most recent 3 epochs)
@@ -622,6 +689,16 @@ def calculate_node_performance_scores(performance_data, all_rp_validators, thres
         fusaka_deaths['last_updated'] = datetime.now().isoformat() + 'Z'
         print(f"Removed {len(validators_to_remove)} recovered node(s) from Fusaka deaths tracking")
 
+    # Update Nimbus fork deaths list - remove validators that came back online
+    if nimbus_validators_to_remove:
+        nimbus_fork_deaths['validators'] = [
+            v for v in nimbus_fork_deaths.get('validators', [])
+            if v['node_address'] not in nimbus_validators_to_remove
+        ]
+        nimbus_fork_deaths['total_count'] = len(nimbus_fork_deaths['validators'])
+        nimbus_fork_deaths['last_updated'] = datetime.now().isoformat() + 'Z'
+        print(f"Removed {len(nimbus_validators_to_remove)} recovered node(s) from Nimbus fork deaths tracking")
+
     # Sort by performance score (put N/A at the end)
     def sort_key(x):
         if x['performance_score'] == "N/A":
@@ -634,16 +711,16 @@ def calculate_node_performance_scores(performance_data, all_rp_validators, thres
     if threshold_filter is not None:
         if threshold_filter == "all":
             print(f"Returning all {len(node_scores)} nodes (no threshold filter)")
-            return node_scores, fusaka_deaths
+            return node_scores, fusaka_deaths, nimbus_fork_deaths
         else:
             filtered_scores = []
             for node in node_scores:
                 if node['performance_score'] != "N/A" and node['performance_score'] < threshold_filter:
                     filtered_scores.append(node)
             print(f"Filtered to {len(filtered_scores)} nodes below {threshold_filter}% threshold")
-            return filtered_scores, fusaka_deaths
+            return filtered_scores, fusaka_deaths, nimbus_fork_deaths
 
-    return node_scores, fusaka_deaths
+    return node_scores, fusaka_deaths, nimbus_fork_deaths
 
 def load_scan_data(filename='rocketpool_scan_results.json'):
     """Load existing scan data."""
@@ -677,6 +754,11 @@ def run_analysis(period='7day', threshold=80, output_dir='reports'):
     fusaka_deaths = load_fusaka_deaths()
     if fusaka_deaths.get('validators'):
         print(f"Loaded {len(fusaka_deaths['validators'])} Fusaka death validators for tracking")
+
+    # Load Nimbus fork deaths tracking
+    nimbus_fork_deaths = load_nimbus_fork_deaths()
+    if nimbus_fork_deaths.get('validators'):
+        print(f"Loaded {len(nimbus_fork_deaths['validators'])} Nimbus fork death validators for tracking")
 
     # Extract validators from scan results
     validators = []
@@ -713,8 +795,8 @@ def run_analysis(period='7day', threshold=80, output_dir='reports'):
     performance_data, start_epoch, end_epoch = query_attestation_performance(client, active_validators, latest_epoch, epochs_to_analyze)
     
     # Calculate node performance scores with threshold filtering
-    node_scores, fusaka_deaths = calculate_node_performance_scores(
-        performance_data, validators, threshold, scan_data=scan_results, fusaka_deaths=fusaka_deaths
+    node_scores, fusaka_deaths, nimbus_fork_deaths = calculate_node_performance_scores(
+        performance_data, validators, threshold, scan_data=scan_results, fusaka_deaths=fusaka_deaths, nimbus_fork_deaths=nimbus_fork_deaths
     )
 
     # Create output directory if needed
@@ -757,6 +839,9 @@ def run_analysis(period='7day', threshold=80, output_dir='reports'):
 
     # Save updated Fusaka deaths tracking
     save_fusaka_deaths(fusaka_deaths)
+
+    # Save updated Nimbus fork deaths tracking
+    save_nimbus_fork_deaths(nimbus_fork_deaths)
 
     # Print performance summary
     print(f"\n=== PERFORMANCE ANALYSIS SUMMARY ===")

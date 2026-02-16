@@ -11,6 +11,7 @@ class RocketPoolDashboard {
     this.showZeroPerformance = true;
     this.excludeBackUpValidators = false;
     this.showOnlyFusakaDeaths = false;
+    this.showOnlyNimbusForkDeaths = false;
     this.showOnlyBelow32Eth = false;
 
     // New filtering and pagination
@@ -30,6 +31,11 @@ class RocketPoolDashboard {
     // Fusaka hard fork datetime constant
     this.FUSAKA_DATETIME = '2025-12-03T21:49:11';
     this.FUSAKA_EPOCH = 411392;
+
+    // Nimbus fork datetime constants (Merkle tree cache corruption, 2026-02-08)
+    this.NIMBUS_FORK_DATETIME = '2026-02-08T01:13:59';
+    this.NIMBUS_FORK_DATETIME_EARLY = '2026-02-08T01:07:35';
+    this.NIMBUS_FORK_EPOCH = 426274;
 
     // Notes system
     this.notesData = {};
@@ -144,6 +150,14 @@ class RocketPoolDashboard {
            node.last_attestation.status === 'fusaka_death';
   }
 
+  // Check if a node is a "Nimbus Fork Death" (stopped attesting at the Nimbus fork)
+  isNimbusForkDeath(node) {
+    if (!node || !node.last_attestation) return false;
+    return node.last_attestation.datetime === this.NIMBUS_FORK_DATETIME ||
+           node.last_attestation.datetime === this.NIMBUS_FORK_DATETIME_EARLY ||
+           node.last_attestation.status === 'nimbus_fork_death';
+  }
+
   async init() {
     this.initTheme();
     this.initWidthToggle();
@@ -154,6 +168,7 @@ class RocketPoolDashboard {
     this.setupToggle();
     this.setupBackUpToggle();
     this.setupFusakaToggle();
+    this.setupNimbusForkToggle();
     this.setupBelow32EthToggle();
     this.setupThemeToggle();
     this.setupWidthToggle();
@@ -751,6 +766,24 @@ class RocketPoolDashboard {
     });
   }
 
+  setupNimbusForkToggle() {
+    const toggle = document.getElementById('nimbus-fork-toggle');
+    if (!toggle) return;
+    this.syncSwitchState(toggle, this.showOnlyNimbusForkDeaths);
+    this.bindToggleLabel(toggle);
+
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.showOnlyNimbusForkDeaths = !this.showOnlyNimbusForkDeaths;
+      this.syncSwitchState(toggle, this.showOnlyNimbusForkDeaths);
+
+      // Re-render the current view with the new filter
+      if (this.currentView === 'main') {
+        this.renderMainReport();
+      }
+    });
+  }
+
   setupBelow32EthToggle() {
     const toggle = document.getElementById('below-32-eth-toggle');
     if (!toggle) return;
@@ -1044,6 +1077,11 @@ class RocketPoolDashboard {
       nodes = nodes.filter(node => this.isFusakaDeath(node));
     }
 
+    // Apply Nimbus Fork Deaths filter if toggle is on
+    if (this.showOnlyNimbusForkDeaths) {
+      nodes = nodes.filter(node => this.isNimbusForkDeath(node));
+    }
+
     // Apply Below 32 ETH filter if toggle is on
     if (this.showOnlyBelow32Eth) {
       nodes = nodes.filter(node => {
@@ -1101,8 +1139,9 @@ class RocketPoolDashboard {
     const totalRewardsLost = underperformingNodes.reduce((sum, node) =>
       sum + node.total_lost, 0);
 
-    // Fusaka Deaths count
+    // Deaths counts
     const fusakaDeaths = underperformingNodes.filter(node => this.isFusakaDeath(node)).length;
+    const nimbusForkDeaths = underperformingNodes.filter(node => this.isNimbusForkDeath(node)).length;
 
     // ENS and security statistics
     const nodesWithEns = underperformingNodes.filter(node => this.getNodeEnsName(node.node_address)).length;
@@ -1129,7 +1168,7 @@ class RocketPoolDashboard {
       { value: nodeCount, label: nodeLabel },
       { value: zeroScoreNodes, label: 'Zero Performance Nodes' },
       { value: totalActiveMinipools, label: 'minipools' },
-      { value: fusakaDeaths, label: 'Fusaka Deaths 💀' },
+      { value: fusakaDeaths + nimbusForkDeaths, label: `Deaths 💀${fusakaDeaths} 🔱${nimbusForkDeaths}` },
       { value: below32EthNodes, label: 'Below 31.9 ETH ⚠️' },
       { value: this.formatRewards(totalRewardsLost), label: 'Lost ETH', formatted: true }
     ];
@@ -1142,10 +1181,10 @@ class RocketPoolDashboard {
       valueElement.textContent = stat.formatted
         ? stat.value
         : String(this.validateData(stat.value, 'number'));
-      
+
       const labelElement = this.createElement('p');
       labelElement.textContent = this.validateData(stat.label, 'text');
-      
+
       card.appendChild(valueElement);
       card.appendChild(labelElement);
       statsGrid.appendChild(card);
@@ -1987,7 +2026,7 @@ class RocketPoolDashboard {
       return span;
     }
 
-    if (lastAttestationData.status === 'found' || lastAttestationData.status === 'found_extended' || lastAttestationData.status === 'fusaka_death') {
+    if (lastAttestationData.status === 'found' || lastAttestationData.status === 'found_extended' || lastAttestationData.status === 'fusaka_death' || lastAttestationData.status === 'nimbus_fork_death') {
       try {
         const datetime = new Date(lastAttestationData.datetime);
 
@@ -2017,10 +2056,16 @@ class RocketPoolDashboard {
         const dateDiv = this.createElement('div');
         dateDiv.style.fontSize = '0.8rem';
 
-        // Check if this is a Fusaka Death and add skull icon
+        // Check if this is a Fusaka Death or Nimbus Fork Death and add icon
         const isFusaka = lastAttestationData.datetime === this.FUSAKA_DATETIME;
+        const isNimbus = lastAttestationData.datetime === this.NIMBUS_FORK_DATETIME ||
+                         lastAttestationData.datetime === this.NIMBUS_FORK_DATETIME_EARLY ||
+                         lastAttestationData.status === 'nimbus_fork_death';
         if (isFusaka) {
           dateDiv.textContent = '💀 ' + datetime.toLocaleDateString();
+          dateDiv.style.fontWeight = 'bold';
+        } else if (isNimbus) {
+          dateDiv.textContent = '🔱 ' + datetime.toLocaleDateString();
           dateDiv.style.fontWeight = 'bold';
         } else {
           dateDiv.textContent = datetime.toLocaleDateString();
