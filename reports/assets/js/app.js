@@ -23,6 +23,9 @@ class RocketPoolDashboard {
     this.scanDataPromise = null;
     this.poapDataPromise = null;
     this.supplementaryLoadScheduled = false;
+    this.scrollMaskObserver = null;
+    this.scrollMaskSyncHandler = null;
+    this.scrollMaskScrollHandler = null;
 
     // Theme management
     this.theme = 'system'; // 'system', 'light', 'dark'
@@ -161,6 +164,7 @@ class RocketPoolDashboard {
   async init() {
     this.initTheme();
     this.initWidthToggle();
+    this.setupScrollMask();
     await this.loadSummaryData();
     await this.loadNotesData();
     this.setupDropdowns();
@@ -175,6 +179,59 @@ class RocketPoolDashboard {
     this.setupNoteModal();
     await this.loadReport();
     this.scheduleAutoRefresh();
+  }
+
+  setupScrollMask() {
+    const root = document.documentElement;
+    const body = document.body;
+    const navigationPanel = document.querySelector('.navigation-panel');
+    if (!navigationPanel) return;
+
+    let stickyStartPx = 0;
+
+    const getScrollTop = () => window.scrollY || window.pageYOffset || 0;
+
+    const syncScrollMaskState = () => {
+      const scrollTop = getScrollTop();
+      const isActive = body.classList.contains('scroll-mask-active');
+      const activateAt = stickyStartPx;
+      const deactivateAt = Math.max(0, stickyStartPx - 24);
+
+      if (!isActive && scrollTop >= activateAt) {
+        body.classList.add('scroll-mask-active');
+      } else if (isActive && scrollTop < deactivateAt) {
+        body.classList.remove('scroll-mask-active');
+      }
+    };
+
+    const syncScrollMaskHeight = () => {
+      if (window.matchMedia('(max-width: 768px)').matches) {
+        root.style.setProperty('--hero-glass-height', '0px');
+        body.classList.remove('scroll-mask-active');
+        return;
+      }
+
+      const heightPx = `${Math.ceil(navigationPanel.getBoundingClientRect().height)}px`;
+      root.style.setProperty('--hero-glass-height', heightPx);
+
+      const stickyTop = parseFloat(window.getComputedStyle(navigationPanel).top) || 0;
+      const rectTop = navigationPanel.getBoundingClientRect().top;
+      stickyStartPx = Math.max(0, rectTop + getScrollTop() - stickyTop);
+      syncScrollMaskState();
+    };
+
+    syncScrollMaskHeight();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      this.scrollMaskObserver = new ResizeObserver(syncScrollMaskHeight);
+      this.scrollMaskObserver.observe(navigationPanel);
+    }
+
+    this.scrollMaskSyncHandler = syncScrollMaskHeight;
+    this.scrollMaskScrollHandler = syncScrollMaskState;
+    window.addEventListener('scroll', this.scrollMaskScrollHandler, { passive: true });
+    window.addEventListener('resize', this.scrollMaskSyncHandler);
+    window.addEventListener('orientationchange', this.scrollMaskSyncHandler);
   }
 
   async loadSummaryData() {
@@ -1136,6 +1193,13 @@ class RocketPoolDashboard {
     }
 
     const totalActiveMinipools = underperformingNodes.reduce((sum, node) => sum + node.active_minipools, 0);
+    const totalBelow32EthMinipools = underperformingNodes.reduce(
+      (sum, node) => sum + (node.validators_below_32_eth || 0), 0
+    );
+
+    // In below-31.9 filter mode, show impacted minipools rather than all active minipools
+    const minipoolCardValue = this.showOnlyBelow32Eth ? totalBelow32EthMinipools : totalActiveMinipools;
+    const minipoolCardLabel = this.showOnlyBelow32Eth ? 'Minipools below 31.9 ETH' : 'Minipools';
     const totalRewardsLost = underperformingNodes.reduce((sum, node) =>
       sum + node.total_lost, 0);
 
@@ -1167,9 +1231,9 @@ class RocketPoolDashboard {
     const statCards = [
       { value: nodeCount, label: nodeLabel },
       { value: zeroScoreNodes, label: 'Zero Performance Nodes' },
-      { value: totalActiveMinipools, label: 'minipools' },
+      { value: minipoolCardValue, label: minipoolCardLabel },
       { value: fusakaDeaths + nimbusForkDeaths, label: `Deaths 💀${fusakaDeaths} 🔱${nimbusForkDeaths}` },
-      { value: below32EthNodes, label: 'Below 31.9 ETH ⚠️' },
+      { value: below32EthNodes, label: 'Nodes below 31.9 ETH ⚠️' },
       { value: this.formatRewards(totalRewardsLost), label: 'Lost ETH', formatted: true }
     ];
 
@@ -1753,11 +1817,12 @@ class RocketPoolDashboard {
   renderValidatorTable(nodeData, nodeInScan) {
     const tableContainer = document.getElementById('performance-table');
     
-    const validators = nodeInScan.minipool_pubkeys.map((pubkey, index) => {
+    const seenPubkeys = new Map();
+    const allEntries = nodeInScan.minipool_pubkeys.map((pubkey, index) => {
       const validatedPubkey = this.validateData(pubkey, 'text');
       const validatedMinipoolAddr = this.validateData(nodeInScan.minipool_addresses[index], 'address');
       const validatorStatus = this.reportData.validator_statuses && this.reportData.validator_statuses[pubkey];
-      
+
       let status = 'Unknown';
       if (validatorStatus) {
         const dbStatus = validatorStatus.status;
@@ -1773,12 +1838,11 @@ class RocketPoolDashboard {
       } else {
         status = index < nodeData.active_minipools ? 'Active' : 'Exited';
       }
-      
+
       // Get balance for this validator
       const balance = this.getValidatorBalance(nodeData, validatorStatus, status, pubkey);
 
       return {
-        index: index + 1,
         pubkey: validatedPubkey,
         minipool_address: validatedMinipoolAddr,
         status: status,
@@ -1786,6 +1850,23 @@ class RocketPoolDashboard {
         balance: balance
       };
     });
+
+    // A pubkey maps to exactly one validator — deduplicate, preferring the active entry
+    const deduplicated = [];
+    for (const entry of allEntries) {
+      const key = entry.pubkey;
+      if (!seenPubkeys.has(key)) {
+        seenPubkeys.set(key, deduplicated.length);
+        deduplicated.push(entry);
+      } else {
+        const existingIdx = seenPubkeys.get(key);
+        if (entry.status === 'Active' && deduplicated[existingIdx].status !== 'Active') {
+          deduplicated[existingIdx] = entry;
+        }
+      }
+    }
+
+    const validators = deduplicated.map((entry, i) => ({ ...entry, index: i + 1 }));
 
     // Security: Use safe table creation
     tableContainer.innerHTML = '';
