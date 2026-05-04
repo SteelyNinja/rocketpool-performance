@@ -1649,11 +1649,11 @@ class RocketPoolDashboard {
         if (!hasMega) return String(mpVal || 0);
         const cell = this.createElement('div', { className: 'pool-count-cell' });
 
-        const mpRow = this.createElement('span', { className: 'pool-count-mp' });
-        mpRow.appendChild(document.createTextNode(String(mpVal || 0)));
+        const miniRow = this.createElement('span', { className: 'pool-count-mini' });
+        miniRow.appendChild(document.createTextNode(String(mpVal || 0)));
         const mpLabel = this.createElement('span', { className: 'pool-type-label' });
-        mpLabel.textContent = 'mp';
-        mpRow.appendChild(mpLabel);
+        mpLabel.textContent = 'mini';
+        miniRow.appendChild(mpLabel);
 
         const megaRow = this.createElement('span', { className: 'pool-count-mega' });
         megaRow.appendChild(document.createTextNode(String(megaVal || 0)));
@@ -1661,7 +1661,7 @@ class RocketPoolDashboard {
         megaLabel.textContent = 'mega';
         megaRow.appendChild(megaLabel);
 
-        cell.appendChild(mpRow);
+        cell.appendChild(miniRow);
         cell.appendChild(megaRow);
         return { element: cell };
       };
