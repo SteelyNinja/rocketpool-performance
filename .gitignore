@@ -1,0 +1,77 @@
+# Rocket Pool Performance Analysis - Git Ignore
+
+# Data files - exclude all JSON data files
+*.json
+# But allow empty example/template files if needed in future
+!.gitkeep
+
+# Fusaka deaths tracking files (runtime/operational)
+extract_fusaka_deaths.py
+FUSAKA_DEATHS_README.md
+FUSAKA_QUICK_START.md
+deploy_rocketpool_report.sh
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+.pytest_cache/
+.coverage
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Project specific - data and test folders
+testing/
+test/
+forced_exit/
+backup/
+
+# Lock files
+*.lock
+rocketpool_analysis.lock
+
+# Environment variables and secrets
+.env
+.env.local
+secrets/
+credentials/
+
+# Deployment specific
+deploy_data.log
+deploy_report.log
+analysis.log
+
+# Temporary files
+*.tmp
+*.bak
+*.old
+*.jpg
+*.png
+*.webp
+
+# Virtual environments
+.venv-export/
+venv.py312*/
+
+# Deployment scripts (contain server addresses)
+deploy_rocketpool_data.sh
+deploy_rocketpool_report.sh
+run_rocketpool_analysis.sh
+
+# AI guidance files - local only
+CLAUDE.md

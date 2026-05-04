@@ -13,6 +13,7 @@ class RocketPoolDashboard {
     this.showOnlyFusakaDeaths = false;
     this.showOnlyNimbusForkDeaths = false;
     this.showOnlyBelow32Eth = false;
+    this.showOnlyMegapools = false;
 
     // New filtering and pagination
     this.currentSort = 'total-lost-desc';
@@ -22,6 +23,8 @@ class RocketPoolDashboard {
     this.filteredNodes = [];
     this.scanDataPromise = null;
     this.poapDataPromise = null;
+    this.megapoolData = null;
+    this.megapoolDataPromise = null;
     this.supplementaryLoadScheduled = false;
     this.scrollMaskObserver = null;
     this.scrollMaskSyncHandler = null;
@@ -174,6 +177,7 @@ class RocketPoolDashboard {
     this.setupFusakaToggle();
     this.setupNimbusForkToggle();
     this.setupBelow32EthToggle();
+    this.setupMegapoolToggle();
     this.setupThemeToggle();
     this.setupWidthToggle();
     this.setupNoteModal();
@@ -285,6 +289,28 @@ class RocketPoolDashboard {
     })();
 
     return this.poapDataPromise;
+  }
+
+  async loadMegapoolScanData() {
+    if (this.megapoolData) return this.megapoolData;
+    if (this.megapoolDataPromise) return this.megapoolDataPromise;
+
+    this.megapoolDataPromise = (async () => {
+      try {
+        const response = await fetch('rocketpool_megapool_scan_results.json');
+        if (response.ok) {
+          this.megapoolData = await response.json();
+        }
+      } catch (error) {
+        console.warn('Could not load megapool scan data:', error);
+        this.megapoolData = null;
+      } finally {
+        this.megapoolDataPromise = null;
+      }
+      return this.megapoolData;
+    })();
+
+    return this.megapoolDataPromise;
   }
 
   refreshActiveViewAfterSupplementaryLoad() {
@@ -859,6 +885,23 @@ class RocketPoolDashboard {
     });
   }
 
+  setupMegapoolToggle() {
+    const toggle = document.getElementById('megapool-toggle');
+    if (!toggle) return;
+    this.syncSwitchState(toggle, this.showOnlyMegapools);
+    this.bindToggleLabel(toggle);
+
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.showOnlyMegapools = !this.showOnlyMegapools;
+      this.syncSwitchState(toggle, this.showOnlyMegapools);
+
+      if (this.currentView === 'main') {
+        this.renderMainReport();
+      }
+    });
+  }
+
   // Theme management methods
   initTheme() {
     console.log('Initializing theme system');
@@ -1108,8 +1151,10 @@ class RocketPoolDashboard {
       summaryCard.classList.add('hidden');
     }
     
-    // Start with all nodes
-    let nodes = this.reportData.node_performance_scores.filter(node => node.active_minipools > 0);
+    // Start with all nodes that have any active validators (minipool or megapool)
+    let nodes = this.reportData.node_performance_scores.filter(node =>
+      (node.active_minipools > 0) || (node.active_megapool_validators > 0)
+    );
     
     // Apply threshold filtering (for non-"all" thresholds)
     if (this.currentThreshold !== 'all') {
@@ -1144,6 +1189,11 @@ class RocketPoolDashboard {
       nodes = nodes.filter(node => {
         return node.validators_below_32_eth && node.validators_below_32_eth > 0;
       });
+    }
+
+    // Apply megapools-only filter if toggle is on
+    if (this.showOnlyMegapools) {
+      nodes = nodes.filter(node => (node.total_megapool_validators || 0) > 0);
     }
 
     // Apply sorting first to get the full ranking
@@ -1192,14 +1242,19 @@ class RocketPoolDashboard {
       nodeLabel = 'Underperforming Nodes';
     }
 
-    const totalActiveMinipools = underperformingNodes.reduce((sum, node) => sum + node.active_minipools, 0);
+    const totalActiveMinipools = underperformingNodes.reduce((sum, node) => sum + (node.active_minipools || 0), 0);
+    const totalActiveMegapools = underperformingNodes.reduce((sum, node) => sum + (node.active_megapool_validators || 0), 0);
     const totalBelow32EthMinipools = underperformingNodes.reduce(
       (sum, node) => sum + (node.validators_below_32_eth || 0), 0
     );
 
     // In below-31.9 filter mode, show impacted minipools rather than all active minipools
-    const minipoolCardValue = this.showOnlyBelow32Eth ? totalBelow32EthMinipools : totalActiveMinipools;
-    const minipoolCardLabel = this.showOnlyBelow32Eth ? 'Minipools below 31.9 ETH' : 'Minipools';
+    const minipoolCardValue = this.showOnlyBelow32Eth
+      ? totalBelow32EthMinipools
+      : (totalActiveMinipools + totalActiveMegapools);
+    const minipoolCardLabel = this.showOnlyBelow32Eth
+      ? 'Minipools below 31.9 ETH'
+      : (totalActiveMegapools > 0 ? 'Active Validators' : 'Active Minipools');
     const totalRewardsLost = underperformingNodes.reduce((sum, node) =>
       sum + node.total_lost, 0);
 
@@ -1582,12 +1637,45 @@ class RocketPoolDashboard {
         uldSpan.textContent = '?';
       }
 
+      // Build stacked count cells — one row per pool type when the node has megapools.
+      // Each row shows the count followed by a small muted type label.
+      // Minipool-only nodes render a plain string (no DOM overhead).
+      const megaTotal  = node.total_megapool_validators  || 0;
+      const megaActive = node.active_megapool_validators || 0;
+      const megaExited = node.exited_megapool_validators || 0;
+      const hasMega    = megaTotal > 0;
+
+      const buildStackedCell = (mpVal, megaVal) => {
+        if (!hasMega) return String(mpVal || 0);
+        const cell = this.createElement('div', { className: 'pool-count-cell' });
+
+        const mpRow = this.createElement('span', { className: 'pool-count-mp' });
+        mpRow.appendChild(document.createTextNode(String(mpVal || 0)));
+        const mpLabel = this.createElement('span', { className: 'pool-type-label' });
+        mpLabel.textContent = 'mp';
+        mpRow.appendChild(mpLabel);
+
+        const megaRow = this.createElement('span', { className: 'pool-count-mega' });
+        megaRow.appendChild(document.createTextNode(String(megaVal || 0)));
+        const megaLabel = this.createElement('span', { className: 'pool-type-label' });
+        megaLabel.textContent = 'mega';
+        megaRow.appendChild(megaLabel);
+
+        cell.appendChild(mpRow);
+        cell.appendChild(megaRow);
+        return { element: cell };
+      };
+
+      const totalCell  = buildStackedCell(node.total_minipools,  megaTotal);
+      const activeCell = buildStackedCell(node.active_minipools, megaActive);
+      const exitedCell = buildStackedCell(node.exited_minipools, megaExited);
+
       return [
         String(actualRank),
         { element: cellContainer },
-        String(this.validateData(node.total_minipools, 'number')),
-        String(this.validateData(node.active_minipools, 'number')),
-        String(this.validateData(node.exited_minipools, 'number')),
+        totalCell,
+        activeCell,
+        exitedCell,
         { element: scoreSpan },
         { element: statusSpan },
         { element: uldSpan },
@@ -1618,6 +1706,9 @@ class RocketPoolDashboard {
     }
     if (!this.poapData && !this.poapDataPromise) {
       this.loadPoapData().then(() => this.refreshActiveViewAfterSupplementaryLoad());
+    }
+    if (!this.megapoolData && !this.megapoolDataPromise) {
+      this.loadMegapoolScanData().then(() => this.refreshActiveViewAfterSupplementaryLoad());
     }
 
     const nodeData = this.reportData.node_performance_scores.find(node => node.node_address === nodeAddress);
@@ -1682,18 +1773,30 @@ class RocketPoolDashboard {
     // Security: Use safe DOM manipulation for stats grid
     statsGrid.innerHTML = ''; // Clear existing content
     
-    // Create basic stat cards
-    const basicStats = [
-      { value: nodeData.total_minipools, label: 'Total Minipools' },
-      { value: nodeData.active_minipools, label: 'Active Minipools' },
-      { value: nodeData.exited_minipools, label: 'Exited Minipools' },
-      {
-        value: nodeData.total_balance_eth ? nodeData.total_balance_eth.toFixed(2) + ' ETH' : 'N/A',
-        label: 'Total Balance',
-        subtitle: nodeData.avg_balance_eth ? `Avg: ${nodeData.avg_balance_eth.toFixed(2)} ETH` : null,
-        isBalance: true
-      }
-    ];
+    const hasMegapools = (nodeData.total_megapool_validators || 0) > 0;
+
+    // Create basic stat cards — show megapool stats alongside minipool stats when relevant
+    const basicStats = [];
+    if (nodeData.total_minipools > 0) {
+      basicStats.push(
+        { value: nodeData.total_minipools, label: 'Total Minipools' },
+        { value: nodeData.active_minipools, label: 'Active Minipools' },
+        { value: nodeData.exited_minipools, label: 'Exited Minipools' }
+      );
+    }
+    if (hasMegapools) {
+      basicStats.push(
+        { value: nodeData.total_megapool_validators, label: 'Megapool Validators ⬡' },
+        { value: nodeData.active_megapool_validators, label: 'Active (Megapool)' },
+        { value: nodeData.exited_megapool_validators, label: 'Exited/Pending (Megapool)' }
+      );
+    }
+    basicStats.push({
+      value: nodeData.total_balance_eth ? nodeData.total_balance_eth.toFixed(2) + ' ETH' : 'N/A',
+      label: 'Total Balance',
+      subtitle: nodeData.avg_balance_eth ? `Avg: ${nodeData.avg_balance_eth.toFixed(2)} ETH` : null,
+      isBalance: true
+    });
 
     basicStats.forEach(stat => {
       const card = this.createElement('div', { className: 'stat-card' });
@@ -1723,14 +1826,19 @@ class RocketPoolDashboard {
       statsGrid.appendChild(withdrawalCard);
     }
 
-    // Render validator table
-    if (nodeInScan && nodeInScan.minipool_pubkeys) {
-      this.renderValidatorTable(nodeData, nodeInScan);
+    // Find this node in megapool scan data
+    const megapoolNodeInScan = this.megapoolData
+      ? this.megapoolData.find(n => n.node_address === nodeData.node_address)
+      : null;
+
+    // Render validator table if we have any scan data for this node
+    if ((nodeInScan && nodeInScan.minipool_pubkeys) || megapoolNodeInScan) {
+      this.renderValidatorTable(nodeData, nodeInScan, megapoolNodeInScan);
     } else {
       tableContainer.innerHTML = '';
       const errorCard = this.createElement('div', { className: 'glass-card p-4 text-center' });
       const errorText = this.createElement('div', { className: 'text-muted' });
-      errorText.textContent = 'Validator details not available - scan data not found';
+      errorText.textContent = 'Validator details not available - scan data not loaded yet';
       errorCard.appendChild(errorText);
       tableContainer.appendChild(errorCard);
     }
@@ -1814,44 +1922,73 @@ class RocketPoolDashboard {
     return 'N/A';
   }
 
-  renderValidatorTable(nodeData, nodeInScan) {
-    const tableContainer = document.getElementById('performance-table');
-    
-    const seenPubkeys = new Map();
-    const allEntries = nodeInScan.minipool_pubkeys.map((pubkey, index) => {
-      const validatedPubkey = this.validateData(pubkey, 'text');
-      const validatedMinipoolAddr = this.validateData(nodeInScan.minipool_addresses[index], 'address');
-      const validatorStatus = this.reportData.validator_statuses && this.reportData.validator_statuses[pubkey];
-
-      let status = 'Unknown';
-      if (validatorStatus) {
-        const dbStatus = validatorStatus.status;
-        if (dbStatus === 'active_ongoing' || dbStatus === 'active_exiting') {
-          status = 'Active';
-        } else if (dbStatus === 'withdrawal_done' || dbStatus === 'exited_unslashed' || dbStatus === 'exited_slashed') {
-          status = 'Exited';
-        } else if (dbStatus === 'not_in_database') {
-          status = 'Exited (Not in DB)';
-        } else {
-          status = `Other (${dbStatus})`;
-        }
+  resolveValidatorStatus(pubkey, fallbackIsActive) {
+    const validatorStatus = this.reportData.validator_statuses && this.reportData.validator_statuses[pubkey];
+    let status = 'Unknown';
+    if (validatorStatus) {
+      const dbStatus = validatorStatus.status;
+      if (dbStatus === 'active_ongoing' || dbStatus === 'active_exiting') {
+        status = 'Active';
+      } else if (dbStatus === 'withdrawal_done' || dbStatus === 'exited_unslashed' || dbStatus === 'exited_slashed') {
+        status = 'Exited';
+      } else if (dbStatus === 'pending_initialized' || dbStatus === 'pending_queued') {
+        status = 'Pending (Queue)';
+      } else if (dbStatus === 'not_in_database') {
+        status = fallbackIsActive ? 'Active' : 'Pending (Awaiting Deposit)';
       } else {
-        status = index < nodeData.active_minipools ? 'Active' : 'Exited';
+        status = `Other (${dbStatus})`;
       }
+    } else {
+      status = fallbackIsActive ? 'Active' : 'Exited';
+    }
+    return { validatorStatus, status };
+  }
 
-      // Get balance for this validator
-      const balance = this.getValidatorBalance(nodeData, validatorStatus, status, pubkey);
+  renderValidatorTable(nodeData, nodeInScan, megapoolNodeInScan) {
+    const tableContainer = document.getElementById('performance-table');
+    tableContainer.innerHTML = '';
 
-      return {
-        pubkey: validatedPubkey,
-        minipool_address: validatedMinipoolAddr,
-        status: status,
-        val_id: validatorStatus ? validatorStatus.val_id : null,
-        balance: balance
-      };
-    });
+    const seenPubkeys = new Map();
+    const allEntries = [];
 
-    // A pubkey maps to exactly one validator — deduplicate, preferring the active entry
+    // Minipool validators
+    if (nodeInScan && nodeInScan.minipool_pubkeys) {
+      nodeInScan.minipool_pubkeys.forEach((pubkey, index) => {
+        const validatedPubkey = this.validateData(pubkey, 'text');
+        const validatedPoolAddr = this.validateData(nodeInScan.minipool_addresses[index], 'address');
+        const { validatorStatus, status } = this.resolveValidatorStatus(
+          pubkey, index < nodeData.active_minipools
+        );
+        allEntries.push({
+          pubkey: validatedPubkey,
+          pool_address: validatedPoolAddr,
+          pool_type: 'minipool',
+          status,
+          val_id: validatorStatus ? validatorStatus.val_id : null,
+          balance: this.getValidatorBalance(nodeData, validatorStatus, status, pubkey)
+        });
+      });
+    }
+
+    // Megapool validators
+    if (megapoolNodeInScan && megapoolNodeInScan.megapool_validator_pubkeys) {
+      const megapoolAddr = this.validateData(megapoolNodeInScan.megapool_address, 'address');
+      megapoolNodeInScan.megapool_validator_pubkeys.forEach((pubkey, index) => {
+        if (!pubkey) return;
+        const validatedPubkey = this.validateData(pubkey, 'text');
+        const { validatorStatus, status } = this.resolveValidatorStatus(pubkey, false);
+        allEntries.push({
+          pubkey: validatedPubkey,
+          pool_address: megapoolAddr,
+          pool_type: 'megapool',
+          status,
+          val_id: validatorStatus ? validatorStatus.val_id : null,
+          balance: this.getValidatorBalance(nodeData, validatorStatus, status, pubkey)
+        });
+      });
+    }
+
+    // Deduplicate by pubkey, preferring active entry
     const deduplicated = [];
     for (const entry of allEntries) {
       const key = entry.pubkey;
@@ -1867,14 +2004,16 @@ class RocketPoolDashboard {
     }
 
     const validators = deduplicated.map((entry, i) => ({ ...entry, index: i + 1 }));
+    const hasMegapoolEntries = validators.some(v => v.pool_type === 'megapool');
 
-    // Security: Use safe table creation
-    tableContainer.innerHTML = '';
-
-    const headers = ['Index', 'Validator Public Key', 'Minipool Address', 'Validator ID', 'Balance (ETH)', 'Status'];
+    const headers = [
+      'Index', 'Validator Public Key',
+      hasMegapoolEntries ? 'Pool Address' : 'Minipool Address',
+      'Validator ID', 'Balance (ETH)', 'Status',
+      ...(hasMegapoolEntries ? ['Type'] : [])
+    ];
 
     const rows = validators.map(validator => {
-      // Create secure external link
       const beaconchainUrl = `https://beaconcha.in/validator/${encodeURIComponent(validator.pubkey)}`;
       const pubkeyLink = this.createElement('a', {
         href: beaconchainUrl,
@@ -1885,7 +2024,6 @@ class RocketPoolDashboard {
       pubkeyLink.setAttribute('title', 'View on beaconcha.in');
       pubkeyLink.textContent = validator.pubkey;
 
-      // Create balance element
       const balanceSpan = this.createElement('span', {
         className: typeof validator.balance === 'number' && validator.balance < 31.9
           ? 'balance-warning'
@@ -1895,20 +2033,29 @@ class RocketPoolDashboard {
         ? validator.balance.toFixed(4)
         : validator.balance;
 
-      // Create status element
       const statusSpan = this.createElement('span', {
         className: validator.status === 'Active' ? 'active-status' : 'exited-status'
       });
       statusSpan.textContent = this.validateData(validator.status, 'text');
 
-      return [
+      const row = [
         String(validator.index),
         { element: pubkeyLink },
-        { text: validator.minipool_address, className: 'node-address break-all' },
+        { text: validator.pool_address, className: 'node-address break-all' },
         validator.val_id ? String(validator.val_id) : 'N/A',
         { element: balanceSpan },
         { element: statusSpan }
       ];
+
+      if (hasMegapoolEntries) {
+        const typeSpan = this.createElement('span', {
+          className: validator.pool_type === 'megapool' ? 'megapool-type-badge' : 'minipool-type-badge'
+        });
+        typeSpan.textContent = validator.pool_type === 'megapool' ? '⬡ Megapool' : 'Minipool';
+        row.push({ element: typeSpan });
+      }
+
+      return row;
     });
 
     const table = this.createTable(headers, rows);
@@ -1927,16 +2074,28 @@ class RocketPoolDashboard {
 
   // Helper functions for ENS and withdrawal info
   getNodeEnsName(nodeAddress) {
-    if (!this.scanData) return null;
-    const node = this.scanData.find(n => n.node_address === nodeAddress);
-    return node ? node.ens_name : null;
+    if (this.scanData) {
+      const node = this.scanData.find(n => n.node_address === nodeAddress);
+      if (node) return node.ens_name;
+    }
+    // Fall back to megapool scan for megapool-only nodes
+    if (this.megapoolData) {
+      const node = this.megapoolData.find(n => n.node_address === nodeAddress);
+      if (node) return node.ens_name;
+    }
+    return null;
   }
 
   getNodeWithdrawalInfo(nodeAddress) {
-    if (!this.scanData) return null;
-    const node = this.scanData.find(n => n.node_address === nodeAddress);
+    let node = null;
+    if (this.scanData) {
+      node = this.scanData.find(n => n.node_address === nodeAddress) || null;
+    }
+    if (!node && this.megapoolData) {
+      node = this.megapoolData.find(n => n.node_address === nodeAddress) || null;
+    }
     if (!node) return null;
-    
+
     return {
       primary_withdrawal_address: node.primary_withdrawal_address,
       primary_withdrawal_ens: node.primary_withdrawal_ens,
@@ -2072,7 +2231,9 @@ class RocketPoolDashboard {
     const periods = {
       '1day': '1 Day',
       '3day': '3 Days', 
-      '7day': '7 Days'
+      '7day': '7 Days',
+      '30day': '30 Days',
+      '100day': '100 Days'
     };
     return periods[period] || period;
   }

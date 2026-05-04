@@ -2,9 +2,9 @@
 """
 Rocket Pool Multi-Period Multi-Threshold Analysis Script
 
-This script generates all 9 report combinations efficiently:
-- Time periods: 1day, 3day, 7day
-- Performance thresholds: 80%, 90%, 95%
+This script generates all 20 report combinations efficiently:
+- Time periods: 1day, 3day, 7day, 30day, 100day
+- Performance thresholds: 80%, 90%, 95%, all
 
 The script reuses scan data and shares ClickHouse queries for optimal performance.
 """
@@ -20,43 +20,55 @@ import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from rocketpool_analysis_only import (
     ANALYSIS_PERIODS, PERFORMANCE_THRESHOLDS,
-    connect_to_clickhouse, load_scan_data, get_all_validator_statuses,
-    get_active_validators, query_attestation_performance,
-    calculate_node_performance_scores, load_fusaka_deaths, save_fusaka_deaths
+    connect_to_clickhouse, load_scan_data, load_megapool_scan_data,
+    extract_validators_from_scan, get_all_validator_statuses,
+    get_active_validators, query_attestation_performance_windows,
+    calculate_node_performance_scores, load_fusaka_deaths, save_fusaka_deaths,
+    load_nimbus_fork_deaths, save_nimbus_fork_deaths, build_validator_balances_lookup,
+    filter_node_performance_scores
 )
 
+for stream_name in ('stdout', 'stderr'):
+    stream = getattr(sys, stream_name, None)
+    if stream and hasattr(stream, 'reconfigure'):
+        stream.reconfigure(line_buffering=True)
+
 def run_multi_analysis(output_dir='reports'):
-    """Generate all 9 report combinations efficiently."""
+    """Generate all report combinations efficiently."""
     print("=== ROCKET POOL MULTI-PERIOD MULTI-THRESHOLD ANALYSIS ===")
     print("Loading existing scan data...")
     
-    # Load existing scan results (shared across all reports)
+    # Load scan results (shared across all reports)
     scan_results = load_scan_data()
     if not scan_results:
         print("Error: Could not load scan data")
         return 1
-    
+
     print(f"Loaded scan data for {len(scan_results)} nodes")
+
+    megapool_scan_results = load_megapool_scan_data()
+    if megapool_scan_results:
+        print(f"Loaded megapool scan data for {len(megapool_scan_results)} nodes with megapools")
+    else:
+        print("No megapool scan data found - tracking minipools only")
 
     # Load Fusaka deaths tracking
     fusaka_deaths = load_fusaka_deaths()
     if fusaka_deaths.get('validators'):
         print(f"Loaded {len(fusaka_deaths['validators'])} Fusaka death validators for tracking")
 
-    # Extract validators from scan results (shared across all reports)
-    validators = []
-    for node in scan_results:
-        if node['minipool_count'] > 0:
-            for i, pubkey in enumerate(node['minipool_pubkeys']):
-                if pubkey:  # Skip None values
-                    validators.append({
-                        'node_index': node['node_index'],
-                        'node_address': node['node_address'],
-                        'minipool_address': node['minipool_addresses'][i],
-                        'pubkey': pubkey
-                    })
-    
-    print(f"Starting performance analysis for {len(validators)} validators...")
+    # Load Nimbus fork deaths tracking
+    nimbus_fork_deaths = load_nimbus_fork_deaths()
+    if nimbus_fork_deaths.get('validators'):
+        print(f"Loaded {len(nimbus_fork_deaths['validators'])} Nimbus fork death validators for tracking")
+
+    # Extract validators from both scan files (shared across all reports)
+    minipool_validators = extract_validators_from_scan(scan_results, 'minipool')
+    megapool_validators = extract_validators_from_scan(megapool_scan_results, 'megapool')
+    validators = minipool_validators + megapool_validators
+
+    print(f"Starting performance analysis for {len(validators)} validators "
+          f"({len(minipool_validators)} minipool, {len(megapool_validators)} megapool)...")
     
     # Connect to ClickHouse (shared connection)
     client = connect_to_clickhouse()
@@ -65,10 +77,9 @@ def run_multi_analysis(output_dir='reports'):
         return 1
     
     # Get latest epoch and all validator statuses (shared across all reports)
-    latest_epoch = client.query("SELECT MAX(epoch) FROM validators_summary").result_rows[0][0]
+    all_validator_statuses, latest_epoch = get_all_validator_statuses(client, validators)
     print(f"Latest epoch: {latest_epoch}")
-    
-    all_validator_statuses, _ = get_all_validator_statuses(client, validators)
+
     active_validators = get_active_validators(client, validators, all_validator_statuses)
     
     print(f"Found {len(active_validators)} active validators")
@@ -76,60 +87,45 @@ def run_multi_analysis(output_dir='reports'):
     # Create output directory structure
     os.makedirs(output_dir, exist_ok=True)
     
-    # Prepare data structures for efficient processing
-    performance_cache = {}  # Cache performance data by period
+    # Query shared performance data once, then fan it out per period/threshold.
     reports_generated = []
-    
     print(f"\nGenerating {len(ANALYSIS_PERIODS)} × {len(PERFORMANCE_THRESHOLDS)} = {len(ANALYSIS_PERIODS) * len(PERFORMANCE_THRESHOLDS)} reports...")
-    
-    # Process each time period
+
+    print("\nQuerying shared performance data for all periods...")
+    performance_by_period, period_windows = query_attestation_performance_windows(
+        client,
+        active_validators,
+        all_validator_statuses,
+        latest_epoch,
+        periods=list(ANALYSIS_PERIODS.keys())
+    )
+    validator_balances_lookup = build_validator_balances_lookup(active_validators, all_validator_statuses)
+
     for period_name, epochs_to_analyze in ANALYSIS_PERIODS.items():
         print(f"\n--- Processing {period_name.upper()} period ({epochs_to_analyze} epochs) ---")
-        
+
         # Create period directory
         period_dir = os.path.join(output_dir, period_name)
         os.makedirs(period_dir, exist_ok=True)
-        
-        # Query performance data for this period (shared across all thresholds)
-        if period_name not in performance_cache:
-            print(f"Querying performance data for {period_name}...")
-            performance_data, start_epoch, end_epoch = query_attestation_performance(
-                client, active_validators, latest_epoch, epochs_to_analyze
-            )
-            performance_cache[period_name] = {
-                'data': performance_data,
-                'start_epoch': start_epoch,
-                'end_epoch': end_epoch
-            }
-        else:
-            performance_data = performance_cache[period_name]['data']
-            start_epoch = performance_cache[period_name]['start_epoch']
-            end_epoch = performance_cache[period_name]['end_epoch']
-        
-        # Process each threshold for this period
+
+        performance_data = performance_by_period[period_name]
+        period_window = period_windows[period_name]
+        start_epoch = period_window['start_epoch']
+        end_epoch = period_window['end_epoch']
+
+        node_scores_all, fusaka_deaths, nimbus_fork_deaths = calculate_node_performance_scores(
+            performance_data, validators, None, scan_results, fusaka_deaths, nimbus_fork_deaths,
+            megapool_scan_data=megapool_scan_results,
+            validator_statuses=all_validator_statuses
+        )
+
         for threshold in PERFORMANCE_THRESHOLDS:
             if threshold == "all":
                 print(f"  Generating {period_name} @ all nodes (no threshold filter)...")
-                threshold_desc = "all"
+                node_scores = node_scores_all
             else:
                 print(f"  Generating {period_name} @ <{threshold}% (underperforming) threshold...")
-                threshold_desc = f"under {threshold}%"
-            
-            # Calculate node performance scores with threshold filtering
-            node_scores, fusaka_deaths = calculate_node_performance_scores(
-                performance_data, validators, threshold, scan_results, fusaka_deaths
-            )
-
-            # Create validator balance lookup by pubkey for frontend
-            validator_balances_lookup = {}
-            for record in performance_data:
-                pubkey = record.get('pubkey')
-                if pubkey:
-                    validator_balances_lookup[pubkey] = {
-                        'val_id': record.get('val_id'),
-                        'balance_eth': record.get('val_balance_eth', 0),
-                        'effective_balance_eth': record.get('val_effective_balance_eth', 0)
-                    }
+                node_scores = filter_node_performance_scores(node_scores_all, threshold)
 
             # Save performance analysis
             output_data = {
@@ -164,6 +160,9 @@ def run_multi_analysis(output_dir='reports'):
     # Save updated Fusaka deaths tracking
     save_fusaka_deaths(fusaka_deaths)
 
+    # Save updated Nimbus fork deaths tracking
+    save_nimbus_fork_deaths(nimbus_fork_deaths)
+
     # Generate summary report
     generate_summary_report(reports_generated, output_dir)
     
@@ -185,7 +184,7 @@ def run_multi_analysis(output_dir='reports'):
 def copy_scan_data_to_reports(output_dir):
     """Copy scan data to reports directory for website access."""
     import shutil
-    
+
     scan_file = 'rocketpool_scan_results.json'
     if os.path.exists(scan_file):
         dest_file = os.path.join(output_dir, scan_file)
@@ -193,6 +192,14 @@ def copy_scan_data_to_reports(output_dir):
         print(f"Scan data copied to {dest_file}")
     else:
         print(f"Warning: {scan_file} not found - ENS names and withdrawal addresses will not be available")
+
+    megapool_scan_file = 'rocketpool_megapool_scan_results.json'
+    if os.path.exists(megapool_scan_file):
+        dest_file = os.path.join(output_dir, megapool_scan_file)
+        shutil.copy2(megapool_scan_file, dest_file)
+        print(f"Megapool scan data copied to {dest_file}")
+    else:
+        print(f"Note: {megapool_scan_file} not found - megapool data will not be available in reports")
 
 def generate_summary_report(reports_generated, output_dir):
     """Generate a summary report of all generated analyses."""

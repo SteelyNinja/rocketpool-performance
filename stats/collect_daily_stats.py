@@ -27,6 +27,7 @@ SCRIPT_DIR = Path(__file__).parent
 STATS_FILE = SCRIPT_DIR / 'stats_history.json'
 FUSAKA_DEATHS_FILE = Path(__file__).parent.parent / 'fusaka_deaths.json'
 SCAN_RESULTS_FILE = Path(__file__).parent.parent / 'reports' / 'rocketpool_scan_results.json'
+MEGAPOOL_SCAN_RESULTS_FILE = Path(__file__).parent.parent / 'rocketpool_megapool_scan_results.json'
 
 # Fusaka hard fork epoch
 FUSAKA_EPOCH = 411392
@@ -117,23 +118,53 @@ def load_scan_results():
         sys.exit(1)
 
 
-def get_validator_list_from_scan(scan_data):
-    """Extract validator list from scan results"""
+def load_megapool_scan_results():
+    """Load megapool scan results. Returns empty list if file does not exist."""
+    if not MEGAPOOL_SCAN_RESULTS_FILE.exists():
+        return []
+    try:
+        with open(MEGAPOOL_SCAN_RESULTS_FILE, 'r') as f:
+            data = json.load(f)
+            log(f"Loaded megapool scan results with {len(data)} nodes")
+            return data
+    except Exception as e:
+        log(f"Warning: Could not load megapool scan results: {e}")
+        return []
+
+
+def get_validator_list_from_scan(scan_data, megapool_scan_data=None):
+    """Extract validator list from minipool and (optionally) megapool scan results."""
     validators = []
 
     for node in scan_data:
         node_address = node.get('node_address')
         minipools = node.get('minipool_addresses', [])
-        pubkeys = node.get('minipool_pubkeys', [])  # Note: key is 'minipool_pubkeys'
+        pubkeys = node.get('minipool_pubkeys', [])
 
         for i, pubkey in enumerate(pubkeys):
             validators.append({
                 'node_address': node_address,
                 'minipool_address': minipools[i] if i < len(minipools) else None,
-                'pubkey': pubkey
+                'pubkey': pubkey,
+                'pool_type': 'minipool'
             })
 
-    log(f"Extracted {len(validators)} validators from scan results")
+    if megapool_scan_data:
+        for node in megapool_scan_data:
+            node_address = node.get('node_address')
+            megapool_address = node.get('megapool_address')
+            for pubkey in node.get('megapool_validator_pubkeys', []):
+                if pubkey:
+                    validators.append({
+                        'node_address': node_address,
+                        'megapool_address': megapool_address,
+                        'pubkey': pubkey,
+                        'pool_type': 'megapool'
+                    })
+
+    minipool_count = sum(1 for v in validators if v.get('pool_type') == 'minipool')
+    megapool_count = sum(1 for v in validators if v.get('pool_type') == 'megapool')
+    log(f"Extracted {len(validators)} validators ({minipool_count} minipool, {megapool_count} megapool)")
     return validators
 
 
@@ -582,7 +613,7 @@ def get_missing_dates(stats_history, up_to_date):
     return sorted(missing)
 
 
-def collect_snapshot_for_date(client, target_date, scan_data, validators, val_id_map):
+def collect_snapshot_for_date(client, target_date, scan_data, validators, val_id_map, megapool_scan_data=None):
     """
     Collect snapshot data for a specific date
     Returns snapshot dict or None if data not available
@@ -637,21 +668,30 @@ def collect_snapshot_for_date(client, target_date, scan_data, validators, val_id
     metrics['uld_false'] = uld_false
     log(f"  ULD flags (active only): {uld_true} using latest delegate, {uld_false} pinned")
 
+    # Megapool counts from scan data (structural counts, not ClickHouse-derived)
+    megapool_node_count = len(megapool_scan_data) if megapool_scan_data else 0
+    megapool_validator_count = (
+        sum(n.get('megapool_validator_count', 0) for n in megapool_scan_data)
+        if megapool_scan_data else 0
+    )
+
     # Create snapshot
     snapshot = {
         "date": target_date.isoformat(),
         "timestamp": datetime.now().isoformat(),
         "collection_note": f"Complete UTC day analysis collected at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        **metrics
+        **metrics,
+        "megapool_node_count": megapool_node_count,
+        "megapool_validator_count": megapool_validator_count
     }
 
     return snapshot
 
 
-def backfill_missing_days(client, stats_history, scan_data, validators, val_id_map, up_to_date):
+def backfill_missing_days(client, stats_history, scan_data, validators, val_id_map, up_to_date, megapool_scan_data=None):
     """
-    Automatically backfill any missing days in stats history
-    Returns updated stats_history
+    Automatically backfill any missing days in stats history.
+    Returns updated stats_history.
     """
     missing_dates = get_missing_dates(stats_history, up_to_date)
 
@@ -666,7 +706,10 @@ def backfill_missing_days(client, stats_history, scan_data, validators, val_id_m
     skipped = 0
 
     for target_date in missing_dates:
-        snapshot = collect_snapshot_for_date(client, target_date, scan_data, validators, val_id_map)
+        snapshot = collect_snapshot_for_date(
+            client, target_date, scan_data, validators, val_id_map,
+            megapool_scan_data=megapool_scan_data
+        )
 
         if snapshot:
             stats_history = append_snapshot(stats_history, snapshot)
@@ -692,9 +735,10 @@ def main():
     target_date = get_previous_complete_day()
     log(f"Target date for collection: {target_date}")
 
-    # Load Rocket Pool scan results
+    # Load Rocket Pool scan results (minipool + megapool)
     scan_data = load_scan_results()
-    validators = get_validator_list_from_scan(scan_data)
+    megapool_scan_data = load_megapool_scan_results()
+    validators = get_validator_list_from_scan(scan_data, megapool_scan_data)
 
     # Connect to ClickHouse
     client = connect_to_clickhouse()
@@ -716,7 +760,8 @@ def main():
         scan_data,
         validators,
         val_id_map,
-        target_date
+        target_date,
+        megapool_scan_data=megapool_scan_data
     )
 
     # Then collect current day's data
@@ -725,7 +770,7 @@ def main():
     log("Step 2: Collecting today's snapshot")
     log("=" * 60)
 
-    snapshot = collect_snapshot_for_date(client, target_date, scan_data, validators, val_id_map)
+    snapshot = collect_snapshot_for_date(client, target_date, scan_data, validators, val_id_map, megapool_scan_data=megapool_scan_data)
 
     if snapshot:
         stats_history = append_snapshot(stats_history, snapshot)
