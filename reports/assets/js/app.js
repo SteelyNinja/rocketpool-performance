@@ -13,7 +13,8 @@ class RocketPoolDashboard {
     this.showOnlyFusakaDeaths = false;
     this.showOnlyNimbusForkDeaths = false;
     this.showOnlyBelow32Eth = false;
-    this.showOnlyMegapools = false;
+    // Validator type filter: 'all' | 'minipool' | 'megapool'
+    this.validatorTypeFilter = 'all';
 
     // New filtering and pagination
     this.currentSort = 'total-lost-desc';
@@ -177,7 +178,6 @@ class RocketPoolDashboard {
     this.setupFusakaToggle();
     this.setupNimbusForkToggle();
     this.setupBelow32EthToggle();
-    this.setupMegapoolToggle();
     this.setupThemeToggle();
     this.setupWidthToggle();
     this.setupNoteModal();
@@ -428,6 +428,17 @@ class RocketPoolDashboard {
     if (selectedSortItem) {
       sortButton.textContent = selectedSortItem.textContent;
     }
+
+    const validatorTypeDropdown = document.getElementById('validator-type-dropdown');
+    if (validatorTypeDropdown) {
+      const validatorTypeButton = validatorTypeDropdown.querySelector('.glass-dropdown-button span');
+      const validatorTypeItems = validatorTypeDropdown.querySelectorAll('.glass-dropdown-item');
+      this.updateSelectedItem(validatorTypeItems, this.validatorTypeFilter);
+      const selectedValidatorTypeItem = Array.from(validatorTypeItems).find(item => item.dataset.value === this.validatorTypeFilter);
+      if (selectedValidatorTypeItem) {
+        validatorTypeButton.textContent = selectedValidatorTypeItem.textContent;
+      }
+    }
   }
 
   setupEventListeners() {
@@ -444,6 +455,12 @@ class RocketPoolDashboard {
     this.setupDropdownEvents('sort-dropdown', (value) => {
       this.currentSort = value;
       this.currentPage = 1; // Reset to first page when sorting changes
+      this.renderMainReport();
+    });
+
+    this.setupDropdownEvents('validator-type-dropdown', (value) => {
+      this.validatorTypeFilter = value;
+      this.currentPage = 1; // Reset to first page when filter changes
       this.renderMainReport();
     });
     
@@ -885,23 +902,6 @@ class RocketPoolDashboard {
     });
   }
 
-  setupMegapoolToggle() {
-    const toggle = document.getElementById('megapool-toggle');
-    if (!toggle) return;
-    this.syncSwitchState(toggle, this.showOnlyMegapools);
-    this.bindToggleLabel(toggle);
-
-    toggle.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.showOnlyMegapools = !this.showOnlyMegapools;
-      this.syncSwitchState(toggle, this.showOnlyMegapools);
-
-      if (this.currentView === 'main') {
-        this.renderMainReport();
-      }
-    });
-  }
-
   // Theme management methods
   initTheme() {
     console.log('Initializing theme system');
@@ -1151,10 +1151,15 @@ class RocketPoolDashboard {
       summaryCard.classList.add('hidden');
     }
     
-    // Start with all nodes that have any active validators (minipool or megapool)
-    let nodes = this.reportData.node_performance_scores.filter(node =>
-      (node.active_minipools > 0) || (node.active_megapool_validators > 0)
-    );
+    // Start with nodes that have active validators of the selected type
+    // (validatorTypeFilter: 'all' | 'minipool' | 'megapool')
+    let nodes = this.reportData.node_performance_scores.filter(node => {
+      const hasActiveMinipools = (node.active_minipools || 0) > 0;
+      const hasActiveMegapools = (node.active_megapool_validators || 0) > 0;
+      if (this.validatorTypeFilter === 'minipool') return hasActiveMinipools;
+      if (this.validatorTypeFilter === 'megapool') return hasActiveMegapools;
+      return hasActiveMinipools || hasActiveMegapools;
+    });
     
     // Apply threshold filtering (for non-"all" thresholds)
     if (this.currentThreshold !== 'all') {
@@ -1189,11 +1194,6 @@ class RocketPoolDashboard {
       nodes = nodes.filter(node => {
         return node.validators_below_32_eth && node.validators_below_32_eth > 0;
       });
-    }
-
-    // Apply megapools-only filter if toggle is on
-    if (this.showOnlyMegapools) {
-      nodes = nodes.filter(node => (node.total_megapool_validators || 0) > 0);
     }
 
     // Apply sorting first to get the full ranking
@@ -1248,13 +1248,22 @@ class RocketPoolDashboard {
       (sum, node) => sum + (node.validators_below_32_eth || 0), 0
     );
 
-    // In below-31.9 filter mode, show impacted minipools rather than all active minipools
-    const minipoolCardValue = this.showOnlyBelow32Eth
-      ? totalBelow32EthMinipools
-      : (totalActiveMinipools + totalActiveMegapools);
-    const minipoolCardLabel = this.showOnlyBelow32Eth
-      ? 'Minipools below 31.9 ETH'
-      : (totalActiveMegapools > 0 ? 'Active Validators' : 'Active Minipools');
+    // Active-validators card adapts to the selected validator type filter.
+    // Below-31.9 filter takes precedence and shows impacted minipools instead.
+    let activeCardValue, activeCardLabel;
+    if (this.showOnlyBelow32Eth) {
+      activeCardValue = totalBelow32EthMinipools;
+      activeCardLabel = 'Minipools below 31.9 ETH';
+    } else if (this.validatorTypeFilter === 'minipool') {
+      activeCardValue = totalActiveMinipools;
+      activeCardLabel = 'Active Minipools';
+    } else if (this.validatorTypeFilter === 'megapool') {
+      activeCardValue = totalActiveMegapools;
+      activeCardLabel = 'Active Megapools';
+    } else {
+      activeCardValue = totalActiveMinipools + totalActiveMegapools;
+      activeCardLabel = 'Active Validators';
+    }
     const totalRewardsLost = underperformingNodes.reduce((sum, node) =>
       sum + node.total_lost, 0);
 
@@ -1286,7 +1295,7 @@ class RocketPoolDashboard {
     const statCards = [
       { value: nodeCount, label: nodeLabel },
       { value: zeroScoreNodes, label: 'Zero Performance Nodes' },
-      { value: minipoolCardValue, label: minipoolCardLabel },
+      { value: activeCardValue, label: activeCardLabel },
       { value: fusakaDeaths + nimbusForkDeaths, label: `Deaths 💀${fusakaDeaths} 🔱${nimbusForkDeaths}` },
       { value: below32EthNodes, label: 'Nodes below 31.9 ETH ⚠️' },
       { value: this.formatRewards(totalRewardsLost), label: 'Lost ETH', formatted: true }
@@ -1646,6 +1655,10 @@ class RocketPoolDashboard {
       const hasMega    = megaTotal > 0;
 
       const buildStackedCell = (mpVal, megaVal) => {
+        // When a single pool type is selected, show only that type's count.
+        if (this.validatorTypeFilter === 'minipool') return String(mpVal || 0);
+        if (this.validatorTypeFilter === 'megapool') return String(megaVal || 0);
+        // 'all': stack mini/mega rows when the node has megapools, else plain count.
         if (!hasMega) return String(mpVal || 0);
         const cell = this.createElement('div', { className: 'pool-count-cell' });
 

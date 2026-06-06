@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Space+Mono:wght@400;700&family=Source+Sans+3:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="assets/css/styles.css?v=e56fcc72">
+    <link rel="stylesheet" href="assets/css/styles.css?v=8c521e8a">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
 </head>
 <body>
@@ -127,6 +127,26 @@
                                 <button class="glass-dropdown-item" type="button" role="option" aria-selected="false" data-value="performance-asc">Performance (Low)</button>
                             </div>
                         </div>
+
+                        <!-- Validator Type Dropdown -->
+                        <div class="glass-dropdown" id="validator-type-dropdown">
+                            <button class="glass-dropdown-button"
+                                    type="button"
+                                    aria-haspopup="listbox"
+                                    aria-expanded="false"
+                                    aria-controls="validator-type-dropdown-list"
+                                    id="validator-type-dropdown-button">
+                                <span>All Validators</span>
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M4.646 6.646a.5.5 0 0 1 .708 0L8 9.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 10a.5.5 0 0 1-.414 0L5.646 7.354a.5.5 0 0 1 0-.708z"/>
+                                </svg>
+                            </button>
+                            <div class="glass-dropdown-content" id="validator-type-dropdown-list" role="listbox" aria-labelledby="validator-type-dropdown-button">
+                                <button class="glass-dropdown-item selected" type="button" role="option" aria-selected="true" data-value="all">All Validators</button>
+                                <button class="glass-dropdown-item" type="button" role="option" aria-selected="false" data-value="minipool">Minipools</button>
+                                <button class="glass-dropdown-item" type="button" role="option" aria-selected="false" data-value="megapool">Megapools ⬡</button>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Donation Message -->
@@ -178,12 +198,6 @@
                     <div class="toggle-container">
                         <button class="toggle-switch" type="button" id="below-32-eth-toggle" role="switch" aria-checked="false" aria-labelledby="below-32-eth-label"></button>
                         <span class="toggle-label" id="below-32-eth-label">Below 31.9 ETH ⚠️</span>
-                    </div>
-
-                    <!-- Megapools Toggle -->
-                    <div class="toggle-container">
-                        <button class="toggle-switch" type="button" id="megapool-toggle" role="switch" aria-checked="false" aria-labelledby="megapool-label"></button>
-                        <span class="toggle-label" id="megapool-label">Megapools ⬡</span>
                     </div>
                 </div>
             </nav>
@@ -299,6 +313,6 @@
         </div>
     </div>
 
-    <script src="assets/js/app.js?v=a787d071" defer></script>
+    <script src="assets/js/app.js?v=d1327702" defer></script>
 </body>
 </html>
