@@ -21,6 +21,8 @@ CLICKHOUSE_PORT = 8123
 EPOCHS_PER_DAY = 225
 ANALYSIS_PERIOD_EPOCHS = 1575  # 7 days
 PERFORMANCE_THRESHOLD = 80.0  # 80% threshold
+ACTIVE_STATUSES = ('active_ongoing', 'active_exiting', 'active_slashed')
+EXITED_STATUSES = ('exited_unslashed', 'exited_slashed', 'withdrawal_possible', 'withdrawal_done')
 
 # File paths
 SCRIPT_DIR = Path(__file__).parent
@@ -216,8 +218,9 @@ def get_validator_ids(client, validators):
 
 def query_7day_performance(client, validator_ids, end_epoch, start_epoch):
     """
-    Query ClickHouse for 7-day performance data
-    Query all validators then filter to Rocket Pool in Python (faster than IN clause)
+    Query ClickHouse for 7-day performance data.
+    Performance metrics intentionally remain a 7-day aggregation; status and
+    balance-based metrics come from a separate end-epoch snapshot query.
     """
     log(f"Querying aggregated performance data for epochs {start_epoch} to {end_epoch}...")
 
@@ -232,8 +235,7 @@ def query_7day_performance(client, validator_ids, end_epoch, start_epoch):
         SUM(att_penalty) as total_penalties,
         SUM(CASE WHEN att_happened = 1 THEN 1 ELSE 0 END) as successful_attestations,
         COUNT(*) as total_epochs,
-        MAX(CASE WHEN att_happened = 1 THEN epoch ELSE NULL END) as last_attestation_epoch,
-        MAX(val_balance) as latest_balance
+        MAX(CASE WHEN att_happened = 1 THEN epoch ELSE NULL END) as last_attestation_epoch
     FROM validators_summary
     WHERE epoch >= {start_epoch} AND epoch <= {end_epoch}
     GROUP BY val_id
@@ -244,13 +246,12 @@ def query_7day_performance(client, validator_ids, end_epoch, start_epoch):
         result = client.query(query)
         log(f"Query complete, filtering results...")
 
-        # Filter to only Rocket Pool validators
         performance_data = []
         for row in result.result_rows:
-            val_id, earned, missed, penalties, successful, total, last_att, balance = row
+            val_id, earned, missed, penalties, successful, total, last_att = row
 
             if val_id not in rp_val_ids:
-                continue  # Skip non-Rocket Pool validators
+                continue
 
             performance_data.append({
                 'val_id': val_id,
@@ -260,7 +261,6 @@ def query_7day_performance(client, validator_ids, end_epoch, start_epoch):
                 'successful_attestations': successful or 0,
                 'total_epochs': total or 0,
                 'last_attestation_epoch': last_att,
-                'latest_balance': balance or 0
             })
 
         log(f"Retrieved performance data for {len(performance_data)} Rocket Pool validators")
@@ -289,36 +289,63 @@ def get_node_assignments(validators, val_id_map):
     return assignments
 
 
-def get_validator_statuses(client, validator_ids, end_epoch):
-    """Get current status for Rocket Pool validators"""
-    log("Querying validator statuses...")
+def get_validator_snapshot(client, validator_ids, end_epoch):
+    """Get end-of-day status and balance for Rocket Pool validators."""
+    log("Querying validator status and end-of-day balances...")
 
     rp_val_ids = set(validator_ids.values())
+    if not rp_val_ids:
+        return {}
 
-    query = f"""
-    SELECT val_id, val_status
-    FROM validators_summary
-    WHERE epoch = {end_epoch}
-    """
+    # Use the full analysis window so sparse epoch coverage does not produce
+    # empty end-of-day snapshots on otherwise valid historical dates.
+    snapshot_start_epoch = max(0, end_epoch - ANALYSIS_PERIOD_EPOCHS + 1)
+    sorted_val_ids = sorted(rp_val_ids)
+    chunk_size = 4000
 
     try:
-        result = client.query(query)
-        statuses = {}
+        validator_snapshot = {}
+        for offset in range(0, len(sorted_val_ids), chunk_size):
+            chunk = sorted_val_ids[offset:offset + chunk_size]
+            val_id_list = ",".join(str(val_id) for val_id in chunk)
+            query = f"""
+            SELECT
+                val_id,
+                argMax(val_status, epoch) AS val_status,
+                argMax(val_balance, epoch) AS val_balance
+            FROM validators_summary
+            WHERE epoch >= {snapshot_start_epoch} AND epoch <= {end_epoch}
+              AND val_id IN ({val_id_list})
+            GROUP BY val_id
+            """
+            result = client.query(query)
 
-        for row in result.result_rows:
-            val_id, status = row
-            if val_id in rp_val_ids:  # Filter to Rocket Pool validators
-                statuses[val_id] = status
+            for row in result.result_rows:
+                val_id, status, balance = row
+                validator_snapshot[val_id] = {
+                    'status': status,
+                    'balance': balance or 0,
+                }
 
-        log(f"Retrieved statuses for {len(statuses)} Rocket Pool validators")
-        return statuses
+        active_count = sum(1 for row in validator_snapshot.values() if row['status'] in ACTIVE_STATUSES)
+        exited_count = sum(1 for row in validator_snapshot.values() if row['status'] in EXITED_STATUSES)
+        below_count = sum(
+            1
+            for row in validator_snapshot.values()
+            if row['status'] in ACTIVE_STATUSES and 0 < (row['balance'] / 1_000_000_000) < 31.9
+        )
+        log(
+            f"Retrieved validator snapshots for {len(validator_snapshot)} Rocket Pool validators "
+            f"({active_count} active, {exited_count} exited, {below_count} below 31.9 ETH)"
+        )
+        return validator_snapshot
 
     except Exception as e:
-        log(f"Warning: Could not get validator statuses: {e}")
+        log(f"Warning: Could not get validator snapshots: {e}")
         return {}
 
 
-def calculate_snapshot_metrics(performance_data, node_assignments, validator_statuses, end_epoch):
+def calculate_snapshot_metrics(performance_data, node_assignments, validator_snapshot, end_epoch):
     """Calculate all metrics for daily snapshot"""
     log("Calculating snapshot metrics...")
 
@@ -329,16 +356,14 @@ def calculate_snapshot_metrics(performance_data, node_assignments, validator_sta
     # Build set of node addresses that still have active validators
     nodes_with_active = set()
     for val_id, node_addr in node_assignments.items():
-        status = validator_statuses.get(val_id)
+        state = validator_snapshot.get(val_id)
+        status = state['status'] if state else None
         if status in ('active_ongoing', 'active_exiting', 'active_slashed'):
             nodes_with_active.add(node_addr.lower())
 
     fusaka_death_count = sum(
         1 for addr in fusaka_node_addresses if addr in nodes_with_active
     )
-
-    # Active validator statuses
-    active_statuses = ('active_ongoing', 'active_exiting', 'active_slashed')
 
     # Aggregate by node - separate active-only performance tracking from financial totals
     node_performance = {}
@@ -349,7 +374,8 @@ def calculate_snapshot_metrics(performance_data, node_assignments, validator_sta
     for perf in performance_data:
         val_id = perf['val_id']
         node_addr = node_assignments.get(val_id)
-        status = validator_statuses.get(val_id)
+        state = validator_snapshot.get(val_id)
+        status = state['status'] if state else None
 
         if not node_addr:
             continue  # Skip validators without node assignment
@@ -360,7 +386,7 @@ def calculate_snapshot_metrics(performance_data, node_assignments, validator_sta
         total_penalties_gwei += perf['total_penalties']
 
         # Only include active validators in performance scoring
-        if status not in active_statuses:
+        if status not in ACTIVE_STATUSES:
             continue
 
         if node_addr not in node_performance:
@@ -415,10 +441,11 @@ def calculate_snapshot_metrics(performance_data, node_assignments, validator_sta
     for perf in performance_data:
         val_id = perf['val_id']
         node_addr = node_assignments.get(val_id)
-        status = validator_statuses.get(val_id)
+        state = validator_snapshot.get(val_id)
+        status = state['status'] if state else None
 
         # Only count active validators
-        if not node_addr or status not in active_statuses:
+        if not node_addr or status not in ACTIVE_STATUSES:
             continue
 
         if perf['total_epochs'] > 0:
@@ -451,17 +478,20 @@ def calculate_snapshot_metrics(performance_data, node_assignments, validator_sta
     active_minipools = 0
     exited_minipools = 0
 
-    for val_id, status in validator_statuses.items():
-        if status in ('active_ongoing', 'active_exiting', 'active_slashed'):
+    for row in validator_snapshot.values():
+        status = row['status']
+        if status in ACTIVE_STATUSES:
             active_minipools += 1
-        elif status in ('exited_unslashed', 'exited_slashed', 'withdrawal_possible', 'withdrawal_done'):
+        elif status in EXITED_STATUSES:
             exited_minipools += 1
 
-    # Count undercollateralised validators (below 31.9 ETH)
+    # Count undercollateralised active validators using end-of-day balances.
     below_31_9_eth = 0
-    for perf in performance_data:
-        balance_eth = perf['latest_balance'] / 1_000_000_000  # gwei to ETH
-        if balance_eth < 31.9 and balance_eth > 0:  # Ignore zero balances
+    for row in validator_snapshot.values():
+        if row['status'] not in ACTIVE_STATUSES:
+            continue
+        balance_eth = row['balance'] / 1_000_000_000
+        if balance_eth < 31.9 and balance_eth > 0:
             below_31_9_eth += 1
 
     # Calculate performance statistics
@@ -633,20 +663,19 @@ def collect_snapshot_for_date(client, target_date, scan_data, validators, val_id
     # Query performance data
     performance_data = query_7day_performance(client, val_id_map, end_epoch, start_epoch)
 
-    # Get node assignments and validator statuses
+    # Get node assignments and end-epoch validator state.
     node_assignments = get_node_assignments(validators, val_id_map)
-    validator_statuses = get_validator_statuses(client, val_id_map, end_epoch)
+    validator_snapshot = get_validator_snapshot(client, val_id_map, end_epoch)
 
     # Calculate metrics
     metrics = calculate_snapshot_metrics(
         performance_data,
         node_assignments,
-        validator_statuses,
+        validator_snapshot,
         end_epoch
     )
 
     # Count Use Latest Delegate flags for active minipools only
-    active_statuses = ('active_ongoing', 'active_exiting', 'active_slashed')
     uld_true = 0
     uld_false = 0
     for node in scan_data:
@@ -657,8 +686,9 @@ def collect_snapshot_for_date(client, target_date, scan_data, validators, val_id
                 continue
             pubkey = pubkeys[i]
             val_id = val_id_map.get(pubkey)
-            status = validator_statuses.get(val_id) if val_id else None
-            if status not in active_statuses:
+            state = validator_snapshot.get(val_id) if val_id else None
+            status = state['status'] if state else None
+            if status not in ACTIVE_STATUSES:
                 continue
             if flag is True:
                 uld_true += 1
@@ -745,6 +775,21 @@ def main():
 
     # Get validator IDs from ClickHouse
     val_id_map = get_validator_ids(client, validators)
+
+    coverage = {}
+    for validator in validators:
+        pool_type = validator.get('pool_type', 'unknown')
+        if pool_type not in coverage:
+            coverage[pool_type] = {'total': 0, 'found': 0}
+        coverage[pool_type]['total'] += 1
+        if validator['pubkey'] in val_id_map:
+            coverage[pool_type]['found'] += 1
+    for pool_type, counts in sorted(coverage.items()):
+        missing = counts['total'] - counts['found']
+        log(
+            f"Validator ID coverage ({pool_type}): found {counts['found']} / {counts['total']} "
+            f"(missing {missing})"
+        )
 
     # Load existing stats history
     stats_history = load_stats_history()
