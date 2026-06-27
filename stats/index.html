@@ -8,15 +8,15 @@
     <!-- Reuse existing styles -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-    <link id="shared-stylesheet" rel="stylesheet" href="../assets/css/styles.css?v=20260214212731">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Space+Mono:wght@400;700&family=Source+Sans+3:wght@400;500;600;700&display=swap">
+    <link id="shared-stylesheet" rel="stylesheet" href="../assets/css/styles.css?v=20260307142000">
     <script>
       (function () {
         const link = document.getElementById('shared-stylesheet');
         if (!link) return;
         const candidates = [
-          '../assets/css/styles.css?v=20260214212731',
-          '../reports/assets/css/styles.css?v=20260214212731'
+          '../assets/css/styles.css?v=20260307142000',
+          '../reports/assets/css/styles.css?v=20260307142000'
         ];
         let index = 0;
         link.addEventListener('error', function () {
@@ -27,7 +27,7 @@
         });
       })();
     </script>
-    <link rel="stylesheet" href="assets/css/stats.css?v=2.22">
+    <link rel="stylesheet" href="assets/css/stats.css?v=2.30">
 
     <!-- Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
@@ -65,6 +65,14 @@
                     <button class="range-btn active" type="button" data-range="all">All Time</button>
                 </div>
             </div>
+            <div class="time-range-controls">
+                <span class="selector-label">Validator Type:</span>
+                <div class="btn-group">
+                    <button class="range-btn pool-btn active" type="button" data-pool="combined">Combined</button>
+                    <button class="range-btn pool-btn" type="button" data-pool="minipool">Minipools</button>
+                    <button class="range-btn pool-btn" type="button" data-pool="megapool">Megapools</button>
+                </div>
+            </div>
         </div>
 
         <!-- Summary Cards -->
@@ -81,7 +89,7 @@
             <div class="summary-card glass-panel">
                 <div class="card-header">
                     <span class="card-icon">🔶</span>
-                    <span class="card-title">Underperforming Minipools</span>
+                    <span class="card-title" id="underperforming-minipools-title">Underperforming Validators</span>
                 </div>
                 <div class="card-value" id="underperforming-minipools-value">--</div>
                 <div class="card-change" id="underperforming-minipools-change">--</div>
@@ -99,7 +107,7 @@
             <div class="summary-card glass-panel">
                 <div class="card-header">
                     <span class="card-icon">🔻</span>
-                    <span class="card-title">Zero Performance Minipools</span>
+                    <span class="card-title" id="zero-performance-minipools-title">Zero Performance Validators</span>
                 </div>
                 <div class="card-value" id="zero-performance-minipools-value">--</div>
                 <div class="card-change" id="zero-performance-minipools-change">--</div>
@@ -130,7 +138,7 @@
             <div class="chart-container glass-panel">
                 <div class="chart-header">
                     <h2 class="chart-title">Underperforming Performance Trend</h2>
-                    <p class="chart-subtitle">Nodes and minipools below 80% performance threshold</p>
+                    <p class="chart-subtitle">Nodes (combined) and validators below 80% performance threshold</p>
                 </div>
                 <div class="chart-wrapper">
                     <canvas id="underperformingChart"></canvas>
@@ -141,18 +149,29 @@
             <div class="chart-container glass-panel">
                 <div class="chart-header">
                     <h2 class="chart-title">Zero Performance Trend</h2>
-                    <p class="chart-subtitle">Nodes and minipools with 0% attestation performance (7-day window)</p>
+                    <p class="chart-subtitle">Nodes (combined) and validators with 0% attestation performance (7-day window)</p>
                 </div>
                 <div class="chart-wrapper">
                     <canvas id="zeroPerformanceChart"></canvas>
                 </div>
             </div>
 
+            <!-- Use Latest Delegate Trend -->
+            <div class="chart-container glass-panel">
+                <div class="chart-header">
+                    <h2 class="chart-title">Use Latest Delegate Adoption</h2>
+                    <p class="chart-subtitle">Minipools using latest delegate vs pinned delegate</p>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="uldChart"></canvas>
+                </div>
+            </div>
+
             <!-- Performance Band Distribution -->
             <div class="chart-container glass-panel full-width">
                 <div class="chart-header">
-                    <h2 class="chart-title">Minipool Performance Distribution</h2>
-                    <p class="chart-subtitle">Active minipools by performance band - network health composition</p>
+                    <h2 class="chart-title">Validator Performance Distribution</h2>
+                    <p class="chart-subtitle">Active validators by performance band - network health composition</p>
                 </div>
                 <div class="chart-wrapper">
                     <canvas id="performanceBandChart"></canvas>
@@ -185,21 +204,10 @@
             <div class="chart-container glass-panel">
                 <div class="chart-header">
                     <h2 class="chart-title">Undercollateralised Validators</h2>
-                    <p class="chart-subtitle">Validators with balance below 31.9 ETH</p>
+                    <p class="chart-subtitle">Validators with beacon-chain balance below 31.9 ETH</p>
                 </div>
                 <div class="chart-wrapper">
                     <canvas id="undercollateralisedChart"></canvas>
-                </div>
-            </div>
-
-            <!-- Use Latest Delegate Trend -->
-            <div class="chart-container glass-panel">
-                <div class="chart-header">
-                    <h2 class="chart-title">Use Latest Delegate Adoption</h2>
-                    <p class="chart-subtitle">Minipools using latest delegate vs pinned delegate</p>
-                </div>
-                <div class="chart-wrapper">
-                    <canvas id="uldChart"></canvas>
                 </div>
             </div>
         </div>
@@ -224,6 +232,6 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
-    <script src="assets/js/stats.js?v=2.25" defer></script>
+    <script src="assets/js/stats.js?v=2.27" defer></script>
 </body>
 </html>

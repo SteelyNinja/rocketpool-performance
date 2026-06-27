@@ -289,6 +289,16 @@ def get_node_assignments(validators, val_id_map):
     return assignments
 
 
+def get_val_id_pool_type(validators, val_id_map):
+    """Map each resolved validator ID to its pool type ('minipool' or 'megapool')."""
+    val_id_pool_type = {}
+    for v in validators:
+        pubkey = v['pubkey']
+        if pubkey in val_id_map:
+            val_id_pool_type[val_id_map[pubkey]] = v.get('pool_type', 'minipool')
+    return val_id_pool_type
+
+
 def get_validator_snapshot(client, validator_ids, end_epoch):
     """Get end-of-day status and balance for Rocket Pool validators."""
     log("Querying validator status and end-of-day balances...")
@@ -548,6 +558,141 @@ def calculate_snapshot_metrics(performance_data, node_assignments, validator_sna
     return metrics
 
 
+def _blank_pool_accumulator():
+    """Raw accumulator for one pool type before metrics are derived."""
+    return {
+        'active': 0,
+        'exited': 0,
+        'underperforming': 0,
+        'zero_performance': 0,
+        'perf_band_0': 0,
+        'perf_band_0_50': 0,
+        'perf_band_50_80': 0,
+        'perf_band_80_90': 0,
+        'perf_band_90_95': 0,
+        'perf_band_95_99_5': 0,
+        'perf_band_99_5_100': 0,
+        'total_earned_gwei': 0,
+        'total_missed_gwei': 0,
+        'total_penalties_gwei': 0,
+        'successful_attestations': 0,
+        'possible_attestations': 0,
+        'below_31_9_eth': 0,
+    }
+
+
+def _finalise_pool_block(acc):
+    """Derive published metrics (totals, lost ETH, average score) from a raw accumulator."""
+    possible = acc['possible_attestations']
+    avg = (acc['successful_attestations'] / possible * 100) if possible > 0 else 0
+    return {
+        'active': acc['active'],
+        'exited': acc['exited'],
+        'total': acc['active'] + acc['exited'],
+        'underperforming': acc['underperforming'],
+        'zero_performance': acc['zero_performance'],
+        'perf_band_0': acc['perf_band_0'],
+        'perf_band_0_50': acc['perf_band_0_50'],
+        'perf_band_50_80': acc['perf_band_50_80'],
+        'perf_band_80_90': acc['perf_band_80_90'],
+        'perf_band_90_95': acc['perf_band_90_95'],
+        'perf_band_95_99_5': acc['perf_band_95_99_5'],
+        'perf_band_99_5_100': acc['perf_band_99_5_100'],
+        'total_earned_gwei': acc['total_earned_gwei'],
+        'total_missed_gwei': acc['total_missed_gwei'],
+        'total_penalties_gwei': acc['total_penalties_gwei'],
+        'total_lost_gwei': acc['total_missed_gwei'] + acc['total_penalties_gwei'],
+        'avg_performance_score': round(avg, 2),
+        'below_31_9_eth': acc['below_31_9_eth'],
+    }
+
+
+def calculate_pool_type_split(performance_data, node_assignments, validator_snapshot, val_id_pool_type):
+    """
+    Bucket validator-level metrics by pool type so the trends charts can show
+    minipool, megapool and combined views.
+
+    Mirrors the combined logic in calculate_snapshot_metrics() exactly, but keyed
+    by each validator's pool type. Node-level metrics are intentionally excluded
+    (a node can hold both pool types, so they remain combined-only).
+    """
+    acc = {'minipool': _blank_pool_accumulator(), 'megapool': _blank_pool_accumulator()}
+
+    # Financial totals across ALL assigned validators (matches combined accumulation).
+    for perf in performance_data:
+        val_id = perf['val_id']
+        if not node_assignments.get(val_id):
+            continue
+        pool = val_id_pool_type.get(val_id)
+        if pool not in acc:
+            continue
+        acc[pool]['total_earned_gwei'] += perf['total_earned']
+        acc[pool]['total_missed_gwei'] += perf['total_missed']
+        acc[pool]['total_penalties_gwei'] += perf['total_penalties']
+
+    # Active-validator performance: bands, underperforming/zero counts, attestation totals.
+    for perf in performance_data:
+        val_id = perf['val_id']
+        node_addr = node_assignments.get(val_id)
+        state = validator_snapshot.get(val_id)
+        status = state['status'] if state else None
+        if not node_addr or status not in ACTIVE_STATUSES:
+            continue
+        pool = val_id_pool_type.get(val_id)
+        if pool not in acc or perf['total_epochs'] <= 0:
+            continue
+
+        score = (perf['successful_attestations'] / perf['total_epochs']) * 100
+        acc[pool]['successful_attestations'] += perf['successful_attestations']
+        acc[pool]['possible_attestations'] += perf['total_epochs']
+
+        if score < PERFORMANCE_THRESHOLD:
+            acc[pool]['underperforming'] += 1
+        if score == 0:
+            acc[pool]['zero_performance'] += 1
+
+        if score == 0.0:
+            acc[pool]['perf_band_0'] += 1
+        elif score < 50.0:
+            acc[pool]['perf_band_0_50'] += 1
+        elif score < 80.0:
+            acc[pool]['perf_band_50_80'] += 1
+        elif score < 90.0:
+            acc[pool]['perf_band_80_90'] += 1
+        elif score < 95.0:
+            acc[pool]['perf_band_90_95'] += 1
+        elif score < 99.5:
+            acc[pool]['perf_band_95_99_5'] += 1
+        else:
+            acc[pool]['perf_band_99_5_100'] += 1
+
+    # End-of-day status and balance counts.
+    for val_id, row in validator_snapshot.items():
+        pool = val_id_pool_type.get(val_id)
+        if pool not in acc:
+            continue
+        status = row['status']
+        if status in ACTIVE_STATUSES:
+            acc[pool]['active'] += 1
+            balance_eth = row['balance'] / 1_000_000_000
+            if 0 < balance_eth < 31.9:
+                acc[pool]['below_31_9_eth'] += 1
+        elif status in EXITED_STATUSES:
+            acc[pool]['exited'] += 1
+
+    # Combined = element-wise sum of both pool types (re-derives average from totals).
+    combined_acc = _blank_pool_accumulator()
+    for pool in ('minipool', 'megapool'):
+        for key, value in acc[pool].items():
+            combined_acc[key] += value
+
+    return {
+        'minipool': _finalise_pool_block(acc['minipool']),
+        'megapool': _finalise_pool_block(acc['megapool']),
+        'combined': _finalise_pool_block(combined_acc),
+    }
+
+
 def load_stats_history():
     """Load existing stats history JSON"""
     if STATS_FILE.exists():
@@ -673,6 +818,15 @@ def collect_snapshot_for_date(client, target_date, scan_data, validators, val_id
         node_assignments,
         validator_snapshot,
         end_epoch
+    )
+
+    # Per-pool-type split (minipool / megapool / combined) for the trends charts.
+    val_id_pool_type = get_val_id_pool_type(validators, val_id_map)
+    metrics['by_pool_type'] = calculate_pool_type_split(
+        performance_data,
+        node_assignments,
+        validator_snapshot,
+        val_id_pool_type
     )
 
     # Count Use Latest Delegate flags for active minipools only

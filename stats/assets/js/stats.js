@@ -221,6 +221,7 @@ class WidthManager {
 class StatsViewer {
     constructor() {
         this.timeRange = 'all'; // Default: All time
+        this.poolMode = 'combined'; // 'combined' | 'minipool' | 'megapool'
         this.charts = {};
         this.statsData = null;
         this.filteredData = null;
@@ -231,6 +232,7 @@ class StatsViewer {
             this.showLoading();
             await this.loadStatsData();
             this.setupTimeRangeControls();
+            this.setupPoolModeControls();
             this.updateSummaryCards();
             this.renderAllCharts();
             this.hideLoading();
@@ -238,6 +240,30 @@ class StatsViewer {
             console.error('Failed to initialise stats viewer:', error);
             this.showError(error.message);
         }
+    }
+
+    /**
+     * Resolve a validator-level metric for the active pool mode.
+     * New snapshots carry a `by_pool_type` block; older ones are read from their
+     * legacy flat field (which represents the minipool-only era, so minipool and
+     * combined both fall back to it and megapool falls back to zero).
+     */
+    poolMetric(snapshot, key, legacyKey) {
+        const split = snapshot.by_pool_type;
+        if (split && split[this.poolMode] && split[this.poolMode][key] !== undefined) {
+            return split[this.poolMode][key];
+        }
+        if (this.poolMode === 'megapool') {
+            return 0;
+        }
+        return snapshot[legacyKey] !== undefined ? snapshot[legacyKey] : 0;
+    }
+
+    /** Noun describing the validator population for the active pool mode. */
+    poolNoun() {
+        if (this.poolMode === 'minipool') return 'Minipools';
+        if (this.poolMode === 'megapool') return 'Megapools';
+        return 'Validators';
     }
 
     showLoading() {
@@ -289,7 +315,8 @@ class StatsViewer {
     }
 
     setupTimeRangeControls() {
-        const buttons = document.querySelectorAll('.range-btn');
+        // Scope to time-range buttons only; pool-mode buttons share .range-btn styling.
+        const buttons = document.querySelectorAll('.range-btn[data-range]');
         buttons.forEach(btn => {
             btn.setAttribute('aria-pressed', btn.classList.contains('active') ? 'true' : 'false');
         });
@@ -310,26 +337,56 @@ class StatsViewer {
         });
     }
 
+    setupPoolModeControls() {
+        const buttons = document.querySelectorAll('.pool-btn');
+        buttons.forEach(btn => {
+            btn.setAttribute('aria-pressed', btn.classList.contains('active') ? 'true' : 'false');
+        });
+
+        buttons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                buttons.forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                buttons.forEach(b => b.setAttribute('aria-pressed', b.classList.contains('active') ? 'true' : 'false'));
+
+                this.poolMode = e.target.dataset.pool;
+                this.updateSummaryCards();
+                this.renderAllCharts();
+            });
+        });
+    }
+
     updateSummaryCards() {
         if (!this.filteredData || this.filteredData.length === 0) return;
 
         const latest = this.filteredData[0];
         const previous = this.filteredData[1];
+        const noun = this.poolNoun();
 
-        // Underperforming Nodes
+        // Underperforming Nodes (always combined - nodes can hold both pool types)
         this.updateCard('underperforming', latest.underperforming_nodes, previous?.underperforming_nodes, false);
 
-        // Underperforming Minipools
-        this.updateCard('underperforming-minipools', latest.underperforming_minipools, previous?.underperforming_minipools, false);
+        // Underperforming validators (respects pool mode)
+        this.setCardTitle('underperforming-minipools', `Underperforming ${noun}`);
+        this.updateCard('underperforming-minipools',
+            this.poolMetric(latest, 'underperforming', 'underperforming_minipools'),
+            previous ? this.poolMetric(previous, 'underperforming', 'underperforming_minipools') : undefined,
+            false);
 
-        // Zero Performance Nodes
+        // Zero Performance Nodes (always combined)
         this.updateCard('zero-performance', latest.zero_performance_nodes, previous?.zero_performance_nodes, false);
 
-        // Zero Performance Minipools
-        this.updateCard('zero-performance-minipools', latest.zero_performance_minipools, previous?.zero_performance_minipools, false);
+        // Zero Performance validators (respects pool mode)
+        this.setCardTitle('zero-performance-minipools', `Zero Performance ${noun}`);
+        this.updateCard('zero-performance-minipools',
+            this.poolMetric(latest, 'zero_performance', 'zero_performance_minipools'),
+            previous ? this.poolMetric(previous, 'zero_performance', 'zero_performance_minipools') : undefined,
+            false);
 
-        // Average Performance Score
-        this.updateCard('performance', latest.avg_performance_score.toFixed(2) + '%', previous?.avg_performance_score, true);
+        // Average Performance Score (respects pool mode)
+        const avgScore = this.poolMetric(latest, 'avg_performance_score', 'avg_performance_score');
+        const prevAvgScore = previous ? this.poolMetric(previous, 'avg_performance_score', 'avg_performance_score') : undefined;
+        this.updateCard('performance', avgScore.toFixed(2) + '%', prevAvgScore, true);
 
         // Use Latest Delegate
         if (latest.uld_true !== undefined) {
@@ -368,6 +425,19 @@ class StatsViewer {
             changeEl.textContent = 'Insufficient data';
             changeEl.className = 'card-change neutral';
         }
+    }
+
+    setCardTitle(prefix, title) {
+        const titleEl = document.getElementById(`${prefix}-title`);
+        if (titleEl) titleEl.textContent = title;
+    }
+
+    /** Show or hide a whole chart card by its canvas id. */
+    setChartVisible(canvasId, visible) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+        const container = ctx.closest('.chart-container');
+        if (container) container.style.display = visible ? '' : 'none';
     }
 
     isDarkMode() {
@@ -421,32 +491,37 @@ class StatsViewer {
         const minipoolLineColor = theme.isDarkMode ? '#fb923c' : '#f97316';
         const minipoolFillColor = theme.isDarkMode ? 'rgba(251, 146, 60, 0.14)' : 'rgba(249, 115, 22, 0.1)';
 
+        const datasets = [];
+        // Node line is combined-only (nodes can hold both pool types), so it is
+        // hidden when a single pool type is selected.
+        if (this.poolMode === 'combined') {
+            datasets.push({
+                label: 'Underperforming Nodes',
+                data: data.map(s => s.underperforming_nodes),
+                borderColor: nodeLineColor,
+                backgroundColor: nodeFillColor,
+                borderWidth: 2,
+                tension: 0.4,
+                fill: true,
+                yAxisID: 'y'
+            });
+        }
+        datasets.push({
+            label: `Underperforming ${this.poolNoun()}`,
+            data: data.map(s => this.poolMetric(s, 'underperforming', 'underperforming_minipools')),
+            borderColor: minipoolLineColor,
+            backgroundColor: minipoolFillColor,
+            borderWidth: 2,
+            tension: 0.4,
+            fill: true,
+            yAxisID: 'y'
+        });
+
         this.charts.underperforming = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: data.map(s => this.formatDate(s.date)),
-                datasets: [
-                    {
-                        label: 'Underperforming Nodes',
-                        data: data.map(s => s.underperforming_nodes),
-                        borderColor: nodeLineColor,
-                        backgroundColor: nodeFillColor,
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: true,
-                        yAxisID: 'y'
-                    },
-                    {
-                        label: 'Underperforming Minipools',
-                        data: data.map(s => s.underperforming_minipools),
-                        borderColor: minipoolLineColor,
-                        backgroundColor: minipoolFillColor,
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: true,
-                        yAxisID: 'y'
-                    }
-                ]
+                datasets: datasets
             },
             options: this.getChartOptions('Count')
         });
@@ -468,8 +543,8 @@ class StatsViewer {
             data: {
                 labels: data.map(s => this.formatDate(s.date)),
                 datasets: [{
-                    label: 'Total Lost ETH',
-                    data: data.map(s => (s.total_lost_gwei / 1_000_000_000).toFixed(2)),
+                    label: `Total Lost ETH (${this.poolNoun()})`,
+                    data: data.map(s => (this.poolMetric(s, 'total_lost_gwei', 'total_lost_gwei') / 1_000_000_000).toFixed(2)),
                     borderColor: lineColor,
                     backgroundColor: fillColor,
                     borderWidth: 2,
@@ -498,8 +573,8 @@ class StatsViewer {
                 labels: data.map(s => this.formatDate(s.date)),
                 datasets: [
                     {
-                        label: 'Network Avg Performance',
-                        data: data.map(s => s.avg_performance_score),
+                        label: `Network Avg Performance (${this.poolNoun()})`,
+                        data: data.map(s => this.poolMetric(s, 'avg_performance_score', 'avg_performance_score')),
                         borderColor: lineColor,
                         backgroundColor: fillColor,
                         borderWidth: 2,
@@ -525,32 +600,36 @@ class StatsViewer {
         const minipoolLineColor = theme.isDarkMode ? '#fb923c' : '#ea580c';
         const minipoolFillColor = theme.isDarkMode ? 'rgba(251, 146, 60, 0.14)' : 'rgba(234, 88, 12, 0.1)';
 
+        const datasets = [];
+        // Node line is combined-only and hidden when a single pool type is selected.
+        if (this.poolMode === 'combined') {
+            datasets.push({
+                label: 'Zero Performance Nodes',
+                data: data.map(s => s.zero_performance_nodes),
+                borderColor: nodeLineColor,
+                backgroundColor: nodeFillColor,
+                borderWidth: 2,
+                tension: 0.4,
+                fill: true,
+                yAxisID: 'y'
+            });
+        }
+        datasets.push({
+            label: `Zero Performance ${this.poolNoun()}`,
+            data: data.map(s => this.poolMetric(s, 'zero_performance', 'zero_performance_minipools')),
+            borderColor: minipoolLineColor,
+            backgroundColor: minipoolFillColor,
+            borderWidth: 2,
+            tension: 0.4,
+            fill: true,
+            yAxisID: 'y'
+        });
+
         this.charts.zeroPerformance = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: data.map(s => this.formatDate(s.date)),
-                datasets: [
-                    {
-                        label: 'Zero Performance Nodes',
-                        data: data.map(s => s.zero_performance_nodes),
-                        borderColor: nodeLineColor,
-                        backgroundColor: nodeFillColor,
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: true,
-                        yAxisID: 'y'
-                    },
-                    {
-                        label: 'Zero Performance Minipools',
-                        data: data.map(s => s.zero_performance_minipools),
-                        borderColor: minipoolLineColor,
-                        backgroundColor: minipoolFillColor,
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: true,
-                        yAxisID: 'y'
-                    }
-                ]
+                datasets: datasets
             },
             options: this.getChartOptions('Count')
         });
@@ -591,7 +670,7 @@ class StatsViewer {
                 datasets: [
                     {
                         label: '0% Bro, just get rETH',
-                        data: data.map(s => s.perf_band_0 || 0),
+                        data: data.map(s => this.poolMetric(s, 'perf_band_0', 'perf_band_0')),
                         backgroundColor: this.hexToRgba(bandColors.band0, bandFillAlpha),
                         borderColor: bandColors.band0,
                         borderWidth: bandBorderWidth,
@@ -603,7 +682,7 @@ class StatsViewer {
                     },
                     {
                         label: '0-50% Absolutely Dreadful',
-                        data: data.map(s => s.perf_band_0_50 || 0),
+                        data: data.map(s => this.poolMetric(s, 'perf_band_0_50', 'perf_band_0_50')),
                         backgroundColor: this.hexToRgba(bandColors.band0_50, bandFillAlpha),
                         borderColor: bandColors.band0_50,
                         borderWidth: bandBorderWidth,
@@ -615,7 +694,7 @@ class StatsViewer {
                     },
                     {
                         label: '50-80% Rather Embarrassing',
-                        data: data.map(s => s.perf_band_50_80 || 0),
+                        data: data.map(s => this.poolMetric(s, 'perf_band_50_80', 'perf_band_50_80')),
                         backgroundColor: this.hexToRgba(bandColors.band50_80, bandFillAlpha),
                         borderColor: bandColors.band50_80,
                         borderWidth: bandBorderWidth,
@@ -627,7 +706,7 @@ class StatsViewer {
                     },
                     {
                         label: '80-90% Bit Concerning',
-                        data: data.map(s => s.perf_band_80_90 || 0),
+                        data: data.map(s => this.poolMetric(s, 'perf_band_80_90', 'perf_band_80_90')),
                         backgroundColor: this.hexToRgba(bandColors.band80_90, bandFillAlpha),
                         borderColor: bandColors.band80_90,
                         borderWidth: bandBorderWidth,
@@ -639,7 +718,7 @@ class StatsViewer {
                     },
                     {
                         label: '90-95% Needs Attention',
-                        data: data.map(s => s.perf_band_90_95 || 0),
+                        data: data.map(s => this.poolMetric(s, 'perf_band_90_95', 'perf_band_90_95')),
                         backgroundColor: this.hexToRgba(bandColors.band90_95, bandFillAlpha),
                         borderColor: bandColors.band90_95,
                         borderWidth: bandBorderWidth,
@@ -651,7 +730,7 @@ class StatsViewer {
                     },
                     {
                         label: '95-99.5% Acceptable',
-                        data: data.map(s => s.perf_band_95_99_5 || 0),
+                        data: data.map(s => this.poolMetric(s, 'perf_band_95_99_5', 'perf_band_95_99_5')),
                         backgroundColor: this.hexToRgba(bandColors.band95_99_5, bandFillAlpha),
                         borderColor: bandColors.band95_99_5,
                         borderWidth: bandBorderWidth,
@@ -663,7 +742,7 @@ class StatsViewer {
                     },
                     {
                         label: '99.5-100% Excellent',
-                        data: data.map(s => s.perf_band_99_5_100 || 0),
+                        data: data.map(s => this.poolMetric(s, 'perf_band_99_5_100', 'perf_band_99_5_100')),
                         backgroundColor: this.hexToRgba(bandColors.band99_5_100, bandFillAlpha),
                         borderColor: bandColors.band99_5_100,
                         borderWidth: bandBorderWidth,
@@ -749,7 +828,7 @@ class StatsViewer {
                         },
                         title: {
                             display: true,
-                            text: 'Active Minipools',
+                            text: `Active ${this.poolNoun()}`,
                             font: {
                                 size: 12,
                                 family: 'Inter, sans-serif',
@@ -779,8 +858,8 @@ class StatsViewer {
             data: {
                 labels: data.map(s => this.formatDate(s.date)),
                 datasets: [{
-                    label: 'Below 31.9 ETH',
-                    data: data.map(s => s.below_31_9_eth),
+                    label: `Below 31.9 ETH (${this.poolNoun()})`,
+                    data: data.map(s => this.poolMetric(s, 'below_31_9_eth', 'below_31_9_eth')),
                     borderColor: lineColor,
                     backgroundColor: fillColor,
                     borderWidth: 2,
@@ -795,6 +874,9 @@ class StatsViewer {
     renderUldTrend() {
         const ctx = document.getElementById('uldChart');
         if (!ctx) return;
+        // Use-latest-delegate data is minipool-only; hide this card for megapools.
+        this.setChartVisible('uldChart', this.poolMode !== 'megapool');
+        if (this.poolMode === 'megapool') return;
         if (this.charts.uld) {
             this.charts.uld.destroy();
         }
