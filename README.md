@@ -9,9 +9,9 @@ This project provides real-time performance tracking, analysis, and visualizatio
 ## Features
 
 ### Analysis Engine
-- **Multi-Period Analysis**: Track performance over 1 day, 3 days, or 7 days
+- **Multi-Period Analysis**: Track performance over 1 day, 3 days, 7 days, 30 days, or 100 days
 - **Multi-Threshold Filtering**: View nodes below 80%, 90%, 95% performance, or all nodes
-- **Automated Reporting**: Generates 12 comprehensive performance reports in a single run
+- **Automated Reporting**: Generates 20 comprehensive performance reports in a single run
 - **Efficient Data Collection**: Uses multicall for batch blockchain queries
 - **ClickHouse Integration**: Fast attestation data queries from beacon chain database
 
@@ -52,7 +52,7 @@ rocketpool_multi_analysis.py (generate reports)
         ↓
 ClickHouse Database (query attestation data)
         ↓
-12 Performance Reports (JSON)
+20 Performance Reports (JSON)
         ↓
 Web Dashboard (index.html)
 ```
@@ -72,7 +72,7 @@ Web Dashboard (index.html)
    - Can be run standalone for single reports
 
 3. **Multi-Report Generator** (`rocketpool_multi_analysis.py`)
-   - Orchestrates generation of all 12 reports
+   - Orchestrates generation of all 20 reports
    - Efficient data reuse across reports
    - Creates summary metadata
 
@@ -153,7 +153,7 @@ This creates `rocketpool_scan_results.json` with all node and minipool data.
 
 ### 2. Generate Performance Reports
 
-**All 12 reports (recommended):**
+**All 20 reports (recommended):**
 ```bash
 python rocketpool_multi_analysis.py
 ```
@@ -174,6 +174,10 @@ reports/
 ├── 3day/
 │   └── ...
 ├── 7day/
+│   └── ...
+├── 30day/
+│   └── ...
+├── 100day/
 │   └── ...
 └── summary.json
 ```
@@ -209,6 +213,8 @@ Access at `http://your-server/rocketpool/`
 - **1 day**: Last ~225 epochs (~24 hours)
 - **3 day**: Last ~675 epochs (~72 hours)
 - **7 day**: Last ~1575 epochs (~168 hours)
+- **30 day**: Last ~6750 epochs (~720 hours)
+- **100 day**: Last ~22500 epochs (~2400 hours)
 
 ### Threshold Filters
 - **<80%**: Broadly underperforming nodes
