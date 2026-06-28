@@ -33,9 +33,9 @@ body {
     background-image:
         linear-gradient(
             90deg,
-            rgba(37, 99, 235, 0.28) 0%,
-            rgba(59, 130, 246, 0.18) 34%,
-            rgba(59, 130, 246, 0.02) 72%
+            rgb(var(--accent-rgb) / 0.28) 0%,
+            rgb(var(--accent-rgb-br) / 0.18) 34%,
+            rgb(var(--accent-rgb-br) / 0.02) 72%
         ),
         var(--stats-header-banner-image);
     background-size: cover;
@@ -53,9 +53,9 @@ body {
     background:
         linear-gradient(
             92deg,
-            rgba(59, 130, 246, 0) 36%,
-            rgba(96, 165, 250, 0.09) 72%,
-            rgba(147, 197, 253, 0.18) 100%
+            rgb(var(--accent-rgb-br) / 0) 36%,
+            rgb(var(--accent-rgb-br2) / 0.09) 72%,
+            rgb(var(--accent-rgb-pale) / 0.18) 100%
         ),
         radial-gradient(circle at 78% 50%, rgba(191, 219, 254, 0.22), transparent 74%);
     pointer-events: none;
@@ -104,7 +104,7 @@ body {
     padding: 0.35rem 0.6rem;
     border-radius: 999px;
     border: 1px solid var(--glass-border);
-    background: linear-gradient(135deg, var(--glass-bg-light), rgba(139, 92, 246, 0.08));
+    background: linear-gradient(135deg, var(--glass-bg-light), rgb(var(--accent2-rgb) / 0.08));
 }
 
 .meta-pill-label {
@@ -235,7 +235,7 @@ body {
 :where(.range-btn, .theme-toggle, .wide-view-toggle, .btn-secondary):focus-visible {
     outline: 2px solid var(--primary-500);
     outline-offset: 2px;
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+    box-shadow: 0 0 0 2px rgb(var(--accent-rgb) / 0.2);
 }
 
 /* Summary Cards */
@@ -475,80 +475,19 @@ body {
 }
 
 /* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-    body:not(.theme-light):not(.theme-dark) .header {
-        background: linear-gradient(135deg, rgba(7, 21, 42, 0.88), rgba(9, 39, 77, 0.78));
-    }
-
-    body:not(.theme-light):not(.theme-dark) .header::before {
-        background-image:
-            linear-gradient(
-                90deg,
-                rgba(4, 14, 30, 0.70) 0%,
-                rgba(7, 27, 53, 0.60) 34%,
-                rgba(10, 42, 84, 0.48) 68%,
-                rgba(15, 67, 129, 0.30) 100%
-            ),
-            var(--stats-header-banner-image);
-        opacity: 0.34;
-        filter: saturate(0.95) brightness(0.95);
-    }
-
-    body:not(.theme-light):not(.theme-dark) .header::after {
-        inset: -35% -14% -35% -14%;
-        background:
-            linear-gradient(
-                92deg,
-                rgba(59, 130, 246, 0) 36%,
-                rgba(59, 130, 246, 0.08) 72%,
-                rgba(59, 130, 246, 0.16) 100%
-            ),
-            radial-gradient(circle at 78% 50%, rgba(96, 165, 250, 0.16), transparent 72%);
-    }
-
-    body:not(.theme-light):not(.theme-dark) .meta-pill {
-        background: rgba(15, 23, 42, 0.58);
-        border-color: rgba(148, 163, 184, 0.25);
-    }
-
-    body:not(.theme-light):not(.theme-dark) .meta-pill-label {
-        color: var(--neutral-400);
-    }
-
-    body:not(.theme-light):not(.theme-dark) .meta-pill-value {
-        color: var(--neutral-200);
-    }
-
-    body:not(.theme-light):not(.theme-dark) .page-title,
-    body:not(.theme-light):not(.theme-dark) .card-value,
-    body:not(.theme-light):not(.theme-dark) .chart-title {
-        color: var(--neutral-100);
-    }
-
-    body:not(.theme-light):not(.theme-dark) .page-subtitle,
-    body:not(.theme-light):not(.theme-dark) .card-title,
-    body:not(.theme-light):not(.theme-dark) .chart-subtitle {
-        color: var(--neutral-400);
-    }
-
-    body:not(.theme-light):not(.theme-dark) .selector-label,
-    body:not(.theme-light):not(.theme-dark) .range-btn {
-        color: var(--neutral-300);
-    }
-}
 
 body.theme-dark .header {
-    background: linear-gradient(135deg, rgba(7, 21, 42, 0.88), rgba(9, 39, 77, 0.78));
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.90), rgba(20, 33, 61, 0.80));
 }
 
 body.theme-dark .header::before {
     background-image:
         linear-gradient(
             90deg,
-            rgba(4, 14, 30, 0.70) 0%,
-            rgba(7, 27, 53, 0.60) 34%,
-            rgba(10, 42, 84, 0.48) 68%,
-            rgba(15, 67, 129, 0.30) 100%
+            rgba(12, 18, 33, 0.72) 0%,
+            rgba(18, 27, 48, 0.60) 34%,
+            rgba(26, 40, 70, 0.46) 68%,
+            rgba(40, 60, 104, 0.30) 100%
         ),
         var(--stats-header-banner-image);
     opacity: 0.34;
@@ -560,11 +499,11 @@ body.theme-dark .header::after {
     background:
         linear-gradient(
             92deg,
-            rgba(59, 130, 246, 0) 36%,
-            rgba(59, 130, 246, 0.08) 72%,
-            rgba(59, 130, 246, 0.16) 100%
+            rgb(var(--accent-rgb-br) / 0) 36%,
+            rgb(var(--accent-rgb-br) / 0.08) 72%,
+            rgb(var(--accent-rgb-br) / 0.16) 100%
         ),
-        radial-gradient(circle at 78% 50%, rgba(96, 165, 250, 0.16), transparent 72%);
+        radial-gradient(circle at 78% 50%, rgb(var(--accent-rgb-br2) / 0.16), transparent 72%);
 }
 
 body.theme-dark .meta-pill {

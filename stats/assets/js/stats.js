@@ -75,18 +75,16 @@ class ThemeManager {
         const html = document.documentElement;
         const body = document.body;
 
-        // Remove existing theme classes
+        // Always apply the *resolved* theme as an explicit class (system is
+        // resolved to light/dark in JS). Matches the shared stylesheet, which
+        // keys the dark palette on .theme-dark / [data-theme] with no separate
+        // prefers-color-scheme fallback.
+        const resolved = this.resolvedTheme; // 'light' | 'dark'
         html.classList.remove('theme-light', 'theme-dark');
         body.classList.remove('theme-light', 'theme-dark');
-
-        // Apply theme class if not system
-        if (this.theme === 'light') {
-            html.classList.add('theme-light');
-            body.classList.add('theme-light');
-        } else if (this.theme === 'dark') {
-            html.classList.add('theme-dark');
-            body.classList.add('theme-dark');
-        }
+        html.classList.add('theme-' + resolved);
+        body.classList.add('theme-' + resolved);
+        html.setAttribute('data-theme', resolved);
 
         this.updateThemeToggleIcon();
 

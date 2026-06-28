@@ -937,26 +937,22 @@ class RocketPoolDashboard {
   applyTheme() {
     const html = document.documentElement;
     const body = document.body;
-    
-    // Remove existing theme classes from both html and body
+
+    // Always apply the *resolved* theme as an explicit class (system is
+    // resolved to light/dark in JS). The CSS has a single source of truth per
+    // theme keyed on the .theme-light/.theme-dark classes and [data-theme],
+    // so there are no separate prefers-color-scheme fallbacks to keep in sync.
+    const resolved = this.resolvedTheme; // 'light' | 'dark'
+
     html.classList.remove('theme-light', 'theme-dark');
     body.classList.remove('theme-light', 'theme-dark');
-    
-    // Apply theme class if not system
-    if (this.theme === 'light') {
-      html.classList.add('theme-light');
-      body.classList.add('theme-light');
-    } else if (this.theme === 'dark') {
-      html.classList.add('theme-dark');
-      body.classList.add('theme-dark');
-    }
-    
-    console.log('Applied theme:', this.theme, 'to DOM. HTML classes:', html.classList.toString());
-    console.log('Body classes:', body.classList.toString());
-    
+    html.classList.add('theme-' + resolved);
+    body.classList.add('theme-' + resolved);
+    html.setAttribute('data-theme', resolved);
+
     // Force a style recalculation
     document.body.offsetHeight;
-    
+
     this.updateThemeToggleIcon();
   }
 
